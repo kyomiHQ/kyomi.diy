@@ -63,6 +63,7 @@ export function AccountPagePanel({ onLogout }: AccountPagePanelProps) {
     describeSessionDevice,
     describeSessionLocation,
     formatTimestamp,
+    locale,
     handleCancelEditEmail,
     handleRevokeAllSessions,
     handleRevokeOtherSessions,
@@ -170,8 +171,10 @@ export function AccountPagePanel({ onLogout }: AccountPagePanelProps) {
                       {describeSessionLocation(sessionItem)}
                     </TableCell>
                     <TableCell>{sessionItem.ipAddress || "Unknown"}</TableCell>
-                    <TableCell>{formatTimestamp(sessionItem.updatedAt).relative}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell lang={locale}>
+                      {formatTimestamp(sessionItem.updatedAt).relative}
+                    </TableCell>
+                    <TableCell lang={locale} className="text-right">
                       {formatTimestamp(sessionItem.expiresAt).absolute}
                     </TableCell>
                   </TableRow>

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePreferredLocale } from "@lib/locale";
 import { Link } from "@tanstack/react-router";
 import { PlusIcon, RssIcon } from "@kyomi/ui/icons/blode";
 import { useMemo } from "react";
@@ -42,6 +43,7 @@ function TopSourceRow({
   moveFeed: (feedId: string, folderId: string) => void;
   movingFeedId: string | null;
 }) {
+  const locale = usePreferredLocale();
   return (
     <Item shape="squircle" size="sm">
       <ItemTarget
@@ -74,7 +76,7 @@ function TopSourceRow({
           <ItemTitle>{feed.title}</ItemTitle>
           <ItemDescription>
             {formatViewedCount(feed.viewedItemCount)} · viewed{" "}
-            {formatRelativeTime(feed.lastViewedAt)}
+            <span lang={locale}>{formatRelativeTime(feed.lastViewedAt, locale)}</span>
           </ItemDescription>
         </ItemContent>
       </ItemTarget>

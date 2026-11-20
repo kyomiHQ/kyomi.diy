@@ -1,45 +1,68 @@
 import type { InboxTimestampDisplayDto, InboxTimestampHourCycleDto } from "@kyomi/reader/schemas";
 
-const absoluteFormatter12h = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  hour12: true,
-});
-const absoluteFormatter24h = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  hour12: false,
-});
-const absoluteUtcFormatter12h = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  hour12: true,
-  timeZone: "UTC",
-});
-const absoluteUtcFormatter24h = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  hour12: false,
-  timeZone: "UTC",
-});
-function formatCompactRelative(value: number, unit: "s" | "m" | "h" | "d" | "w" | "mo" | "y") {
-  return `${Math.abs(value)}${unit}`;
+function createFormatters(locale: string) {
+  const locales = [locale, "en"];
+  const date = (timeZone?: "UTC") =>
+    new Intl.DateTimeFormat(locales, { dateStyle: "medium", timeZone });
+  const dateTime = (hour12: boolean, timeZone?: "UTC") =>
+    new Intl.DateTimeFormat(locales, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      hour12,
+      timeZone,
+    });
+  return {
+    dates: { local: date(), UTC: date("UTC") },
+    dateTimes: {
+      local: { "12h": dateTime(true), "24h": dateTime(false) },
+      UTC: { "12h": dateTime(true, "UTC"), "24h": dateTime(false, "UTC") },
+    },
+    relativeLong: new Intl.RelativeTimeFormat(locales, { numeric: "auto" }),
+    units: new Map<string, Intl.NumberFormat>(),
+    locales,
+  };
 }
 
-function getAbsoluteFormatter(hourCycle: InboxTimestampHourCycleDto) {
-  return hourCycle === "12h" ? absoluteFormatter12h : absoluteFormatter24h;
+type Formatters = ReturnType<typeof createFormatters>;
+const defaultFormatters = createFormatters("en");
+let recentFormatters = defaultFormatters;
+
+function getFormatters(locale: string) {
+  if (locale === "en") return defaultFormatters;
+  if (recentFormatters.locales[0] !== locale) recentFormatters = createFormatters(locale);
+  return recentFormatters;
 }
 
-function getAbsoluteUtcFormatter(hourCycle: InboxTimestampHourCycleDto) {
-  return hourCycle === "12h" ? absoluteUtcFormatter12h : absoluteUtcFormatter24h;
-}
+const compactUnits = {
+  s: "second",
+  m: "minute",
+  h: "hour",
+  d: "day",
+  w: "week",
+  mo: "month",
+  y: "year",
+} as const;
 
-const relativeLongFormatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-const dateFormatter = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
-const dateUtcFormatter = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
+function formatCompactRelative(
+  value: number,
+  unit: keyof typeof compactUnits,
+  formats: Formatters,
+) {
+  if (formats === defaultFormatters) return `${Math.abs(value)}${unit}`;
+  let formatter = formats.units.get(unit);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(formats.locales, {
+      style: "unit",
+      unit: compactUnits[unit],
+      unitDisplay: "narrow",
+    });
+    formats.units.set(unit, formatter);
+  }
+  return formatter.format(Math.abs(value));
+}
 
 /** "5 minutes ago", "yesterday", "in 2 hours": the same steps as the compact form, spelled out. */
-function formatRelativeLong(date: Date) {
+function formatRelativeLong(date: Date, formatter: Intl.RelativeTimeFormat) {
   const diffSeconds = Math.round((date.getTime() - Date.now()) / 1000);
   const abs = Math.abs(diffSeconds);
   const steps: [Intl.RelativeTimeFormatUnit, number][] = [
@@ -53,11 +76,11 @@ function formatRelativeLong(date: Date) {
   let divisor = 1;
   for (const [unit, limit] of steps) {
     if (abs < limit) {
-      return relativeLongFormatter.format(Math.round(diffSeconds / divisor), unit);
+      return formatter.format(Math.round(diffSeconds / divisor), unit);
     }
     divisor = limit;
   }
-  return relativeLongFormatter.format(Math.round(diffSeconds / 31_536_000), "year");
+  return formatter.format(Math.round(diffSeconds / 31_536_000), "year");
 }
 
 /** 2026-11-18 21:41 (or 9:41 PM with a 12-hour clock), in the given time zone. */
@@ -79,105 +102,87 @@ function formatIso(date: Date, hourCycle: InboxTimestampHourCycleDto, timeZone?:
   }`;
 }
 
-/** Formats that are not the compact relative or the medium date and time. */
-function formatOtherDisplay(
-  date: Date,
-  display: InboxTimestampDisplayDto,
-  hourCycle: InboxTimestampHourCycleDto,
-  utc: boolean,
-) {
-  if (display === "relative-long") {
-    return formatRelativeLong(date);
-  }
-  if (display === "date") {
-    return (utc ? dateUtcFormatter : dateFormatter).format(date);
-  }
-  if (display === "iso") {
-    return formatIso(date, hourCycle, utc ? "UTC" : undefined);
-  }
-  return null;
-}
-
-function formatRelative(date: Date) {
+function formatRelative(date: Date, formats: Formatters) {
   const diffMs = date.getTime() - Date.now();
   const diffSeconds = Math.round(diffMs / 1000);
   const absSeconds = Math.abs(diffSeconds);
 
   if (absSeconds < 60) {
-    return formatCompactRelative(diffSeconds, "s");
+    return formatCompactRelative(diffSeconds, "s", formats);
   }
 
   const diffMinutes = Math.round(diffMs / 60_000);
   const absMinutes = Math.abs(diffMinutes);
 
   if (absMinutes < 60) {
-    return formatCompactRelative(diffMinutes, "m");
+    return formatCompactRelative(diffMinutes, "m", formats);
   }
 
   const diffHours = Math.round(diffMinutes / 60);
   const absHours = Math.abs(diffHours);
   if (absHours < 24) {
-    return formatCompactRelative(diffHours, "h");
+    return formatCompactRelative(diffHours, "h", formats);
   }
 
   const diffDays = Math.round(diffHours / 24);
   const absDays = Math.abs(diffDays);
   if (absDays < 7) {
-    return formatCompactRelative(diffDays, "d");
+    return formatCompactRelative(diffDays, "d", formats);
   }
 
   const diffWeeks = Math.round(diffDays / 7);
   if (Math.abs(diffWeeks) < 5) {
-    return formatCompactRelative(diffWeeks, "w");
+    return formatCompactRelative(diffWeeks, "w", formats);
   }
 
   const diffMonths = Math.round(diffDays / 30);
   if (Math.abs(diffMonths) < 12) {
-    return formatCompactRelative(diffMonths, "mo");
+    return formatCompactRelative(diffMonths, "mo", formats);
   }
 
   const diffYears = Math.round(diffDays / 365);
-  return formatCompactRelative(diffYears, "y");
+  return formatCompactRelative(diffYears, "y", formats);
+}
+
+function formatTimestamp(
+  value: string,
+  display: InboxTimestampDisplayDto,
+  hourCycle: InboxTimestampHourCycleDto,
+  locale: string,
+  utc: boolean,
+) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  if (display === "iso") return formatIso(date, hourCycle, utc ? "UTC" : undefined);
+
+  const formats = getFormatters(locale);
+  const zone = utc ? "UTC" : "local";
+  switch (display) {
+    case "relative":
+      return formatRelative(date, formats);
+    case "relative-long":
+      return formatRelativeLong(date, formats.relativeLong);
+    case "date":
+      return formats.dates[zone].format(date);
+    case "absolute":
+      return formats.dateTimes[zone][hourCycle].format(date);
+  }
 }
 
 export function formatInboxTimestamp(
   value: string,
   display: InboxTimestampDisplayDto,
   hourCycle: InboxTimestampHourCycleDto,
+  locale = "en",
 ) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  if (display === "relative") {
-    return formatRelative(date);
-  }
-
-  return (
-    formatOtherDisplay(date, display, hourCycle, false) ??
-    getAbsoluteFormatter(hourCycle).format(date)
-  );
+  return formatTimestamp(value, display, hourCycle, locale, false);
 }
 
 export function formatInboxTimestampSsrFallback(
   value: string,
   display: InboxTimestampDisplayDto,
   hourCycle: InboxTimestampHourCycleDto,
+  locale = "en",
 ) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  if (display === "relative") {
-    return formatRelative(date);
-  }
-
-  return (
-    formatOtherDisplay(date, display, hourCycle, true) ??
-    getAbsoluteUtcFormatter(hourCycle).format(date)
-  );
+  return formatTimestamp(value, display, hourCycle, locale, true);
 }

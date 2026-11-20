@@ -42,7 +42,7 @@ const steps = {
   },
   language: {
     title: "Preferred language",
-    description: "Used for article translations. You can change this later.",
+    description: "Sets your date formats and translation language. You can change this later.",
   },
   bundleIds: {
     title: "Add some starter feeds",

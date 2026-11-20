@@ -61,7 +61,7 @@ The HTTP journey in `tests/api/e2e/onboarding.test.ts` uses real auth sessions. 
 
 ### Reader translation
 
-Onboarding completion copies the canonical BCP 47 language tag into the account's reader preferences in the same transaction. Existing users can change it in web Settings → Appearance → Reading or through `PATCH /api/v1/me/preferences`. Migration 0046 carries forward languages from completed onboarding records. Accounts without a selection default to English.
+Onboarding completion copies the canonical BCP 47 language tag into the account's preferences in the same transaction. The web app uses it for date and time formatting and as the default target for article translation. Existing users can change it in web Settings → Appearance → Preferred language or through `PATCH /api/v1/me/preferences`. Migration 0046 carries forward languages from completed onboarding records. Accounts without a selection default to English.
 
 An authenticated `POST /api/v1/articles/:articleId/translate` accepts an optional reader mode, source language and target language. The API translates the stored feed article body. It derives the source from article or feed metadata and uses the model's English default when both are missing. Region and script stay in the user's preference. The provider receives its supported base code. Clips, unsupported languages and bodies longer than 6,000 characters are outside this provider contract.
 

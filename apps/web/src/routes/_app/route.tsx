@@ -7,7 +7,10 @@ import {
 import { AppShell } from "@/app/shell";
 import { RouteErrorPage } from "@/app/error";
 import { DefaultNotFoundPage } from "@/app/not-found";
+import { useHydrated } from "@hooks/use-hydrated";
+import { PreferredLocale } from "@lib/locale";
 import { INBOX_RECOVERY_ACTION } from "@lib/recovery";
+import { useReaderPreferences } from "@modules/reader/hooks/use-preferences";
 import { buildAuthEntryHref } from "@modules/auth/redirect";
 import { getOnboardingStatus } from "@modules/onboarding/lib/api";
 import { getErrorStatus } from "@lib/status";
@@ -35,9 +38,16 @@ function AppRouteErrorPage(props: ErrorComponentProps) {
 }
 
 function AppLayout() {
+  const { preferences } = useReaderPreferences();
+  const hydrated = useHydrated();
+  const preferredLanguage = preferences.language === "ns" ? "nso" : (preferences.language ?? "en");
+  const [locale = "en"] = hydrated ? Intl.DateTimeFormat.supportedLocalesOf(preferredLanguage) : [];
+
   return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <PreferredLocale value={locale}>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </PreferredLocale>
   );
 }

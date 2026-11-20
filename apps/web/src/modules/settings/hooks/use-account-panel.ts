@@ -1,5 +1,6 @@
 "use client";
 
+import { usePreferredLocale } from "@lib/locale";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
@@ -16,6 +17,7 @@ import { describeSessionLocation } from "../lib/session/location";
 import type { SessionRow, UseAccountPanelArgs } from "../lib/session/types";
 
 export function useAccountPanel({ session }: UseAccountPanelArgs) {
+  const locale = usePreferredLocale();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -131,7 +133,8 @@ export function useAccountPanel({ session }: UseAccountPanelArgs) {
   return {
     describeSessionDevice,
     describeSessionLocation,
-    formatTimestamp,
+    locale,
+    formatTimestamp: (value: string) => formatTimestamp(value, locale),
     handleCancelEditEmail,
     handleRevokeAllSessions,
     handleRevokeOtherSessions,

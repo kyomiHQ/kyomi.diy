@@ -1,6 +1,6 @@
 # Component usage in @kyomi/ui
 
-This inventory covers 437 JSX component instances across 65 source files.
+This inventory covers 438 JSX component instances across 66 source files.
 Each entry gives the containing function and JSX ancestry, variant and state props at the call
 site, local styling, and explicit CSS variables. Tailwind utility names indicate their underlying
 scale or semantic role. Expressions and spread props can also resolve styles at runtime.
@@ -280,6 +280,10 @@ linked implementation. To regenerate this inventory, run `bun run --cwd packages
 - [43](src/components/meter.tsx#L43) ` MeterPrimitive.Track ` in ` MeterTrack `. Variants inherit defaults · styling ` className={cn("block h-2 w-full overflow-hidden bg-input", className)} ` · CSS variables from component or utility scale · forwards spread props.
 - [56](src/components/meter.tsx#L56) ` MeterPrimitive.Indicator ` in ` MeterIndicator `. Variants inherit defaults · styling ` className={cn("bg-primary transition-all duration-(--duration-layer-exit)", className)} ` · CSS variables ` --duration-layer-exit ` · forwards spread props.
 - [69](src/components/meter.tsx#L69) ` MeterPrimitive.Value ` in ` MeterValue `. Variants inherit defaults · styling ` className={cn("text-foreground text-sm tabular-nums", className)} ` · CSS variables from component or utility scale · forwards spread props.
+
+## [src/components/native-select.tsx](src/components/native-select.tsx)
+
+- [20](src/components/native-select.tsx#L20) ` ChevronDownIcon ` in ` NativeSelect → span `. Variants inherit defaults · styling ` className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-[calc(50%+var(--stroke-width)/2)] text-muted-foreground forced-colors:hidden [&_path]:[stroke-width:var(--icon-stroke)]" ` · CSS variables ` --stroke-width `, ` --icon-stroke `.
 
 ## [src/components/number-field.tsx](src/components/number-field.tsx)
 

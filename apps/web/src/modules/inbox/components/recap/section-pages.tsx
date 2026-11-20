@@ -1,5 +1,6 @@
 "use client";
 
+import { usePreferredLocale } from "@lib/locale";
 import { BookmarkFilledIcon } from "@kyomi/ui/icons/blode";
 import { CommandItem } from "@kyomi/ui/components/command";
 import { FeedFavicon } from "@modules/feeds/components/favicon";
@@ -94,13 +95,14 @@ export function WorthRevisitingPage({
   run: Run;
   term: string;
 }) {
+  const locale = usePreferredLocale();
   return (
     <ArticlesPage
       icon={<BookmarkFilledIcon className="kyomi-command-item-icon" />}
       label="Worth revisiting"
       rows={items.map((item) => ({
         id: item.id,
-        meta: formatRelativeTime(item.savedAt),
+        meta: formatRelativeTime(item.savedAt, locale),
         title: item.title,
       }))}
       run={run}

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePreferredLocale } from "@lib/locale";
 import { Link } from "@tanstack/react-router";
 import { BookmarkFilledIcon, ExternalLinkIcon } from "@kyomi/ui/icons/blode";
 import {
@@ -29,6 +30,7 @@ export function WorthRevisiting({
   onUnsave: (itemId: string) => void;
   unsavingItemId: string | null;
 }) {
+  const locale = usePreferredLocale();
   const visibleItems = items.slice(0, limit);
 
   return (
@@ -61,7 +63,8 @@ export function WorthRevisiting({
                 </ItemTarget>
                 <div className="mt-1 flex min-w-0 items-center gap-1">
                   <ItemDescription className="min-w-0 flex-1">
-                    {item.feedTitle} · saved {formatRelativeTime(item.savedAt)}
+                    {item.feedTitle} · saved{" "}
+                    <span lang={locale}>{formatRelativeTime(item.savedAt, locale)}</span>
                   </ItemDescription>
                   <ItemActions
                     className="text-muted-foreground"

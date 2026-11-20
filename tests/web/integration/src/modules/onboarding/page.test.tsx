@@ -125,7 +125,7 @@ test("automatically opens the inbox after validating and saving the final bundle
   expect(technology.form?.dataset.valid).toBe("true");
   expect(screen.getByRole<HTMLButtonElement>("button", { name: "Sports" }).disabled).toBe(true);
   next();
-  const language = await screen.findByRole("combobox", { name: "Reading language" });
+  const language = await screen.findByRole("combobox", { name: "Preferred language" });
   expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
     "Select a language",
     ...languages.map(({ name }) => name),

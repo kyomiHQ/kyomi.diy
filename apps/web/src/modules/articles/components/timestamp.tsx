@@ -2,6 +2,7 @@
 
 import type { InboxTimestampDisplayDto, InboxTimestampHourCycleDto } from "@kyomi/reader/schemas";
 import { useHydrated } from "@hooks/use-hydrated";
+import { usePreferredLocale } from "@lib/locale";
 import {
   formatInboxTimestamp,
   formatInboxTimestampSsrFallback,
@@ -15,12 +16,13 @@ type TimestampProps = {
 
 export function Timestamp({ value, display, hourCycle }: TimestampProps) {
   const hydrated = useHydrated();
+  const locale = usePreferredLocale();
   const formattedValue = hydrated
-    ? formatInboxTimestamp(value, display, hourCycle)
-    : formatInboxTimestampSsrFallback(value, display, hourCycle);
+    ? formatInboxTimestamp(value, display, hourCycle, locale)
+    : formatInboxTimestampSsrFallback(value, display, hourCycle, locale);
 
   return (
-    <time dateTime={value} suppressHydrationWarning>
+    <time dateTime={value} lang={display === "iso" ? undefined : locale} suppressHydrationWarning>
       {formattedValue}
     </time>
   );
