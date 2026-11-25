@@ -99,19 +99,27 @@ test.skipIf(!process.env.ONBOARDING_TEST_DATABASE_URL)(
           available: false,
         });
       }
-      const seeded = await pool.query(
-        "select count(*)::int as count from feed_subscriptions join user_onboarding using (user_id) where username = $1",
-        [username],
-      );
-      expect(seeded.rows[0].count).toBe(4);
       const retry = { username: "other_" + username, bundleIds: ["technology", "science"] };
       expect((await request(loser, "PATCH", "", retry)).status).toBe(200);
       expect((await request(loser, "PUT", "/completion")).status).toBe(200);
       const subscriptions = await pool.query(
-        "select count(*)::int as count from feed_subscriptions join user_onboarding using (user_id) where username = $1",
-        [retry.username],
+        `select user_onboarding.username, folders.name, count(*)::int as count
+         from feed_subscriptions
+         join user_onboarding using (user_id)
+         left join folders on folders.id = feed_subscriptions.folder_id
+           and folders.user_id = feed_subscriptions.user_id
+         where username in ($1, $2)
+         group by user_onboarding.username, folders.name`,
+        [username, retry.username],
       );
-      expect(subscriptions.rows).toEqual([{ count: 8 }]);
+      expect(subscriptions.rows).toHaveLength(3);
+      expect(subscriptions.rows).toEqual(
+        expect.arrayContaining([
+          { username, name: "Technology", count: 4 },
+          { username: retry.username, name: "Science", count: 4 },
+          { username: retry.username, name: "Technology", count: 4 },
+        ]),
+      );
       const expiredCookie = await login(email);
       const expiredSession = await auth.api.getSession({
         headers: new Headers({ cookie: expiredCookie }),
