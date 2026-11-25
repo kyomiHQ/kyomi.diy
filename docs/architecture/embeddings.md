@@ -1,5 +1,16 @@
 # Local embeddings
 
+[Read the illustrated browser report](embeddings.html), generated with glyph-kit from the
+[editable report spec](embeddings.glyph.json). The report is a self-contained HTML snapshot of
+this document. To refresh it after updating the spec:
+
+```sh
+node docs/architecture/embeddings.glyph.mjs
+```
+
+The exporter uses `~/.agents/skills/glyph-kit` by default; pass another skill directory as its
+first argument if needed. It preserves the kit's layout and adds wrapping for long source paths.
+
 `packages/ingest/src/services/embeddings.ts` owns the server-only encoder. Existing feed
 classification in `services/feed/embeddings.ts` continues to own text preparation, batch limits,
 partial failures, category-head scoring, and article/feed selection rules. The API wraps these
