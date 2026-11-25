@@ -21,6 +21,10 @@ import {
   type ProcessedFeedStats,
 } from "./types";
 
+// The widest row below has 15 bound columns. Keep every statement well below PostgreSQL's
+// 65,535-parameter limit, independently of the number of items in a feed/page.
+const WRITE_BATCH_SIZE = 1_000;
+
 type CategoryRecord = {
   slug: string;
   label: string;
@@ -78,30 +82,38 @@ const upsertClassifierCategories = Effect.fn("catalog.backfill.upsertCategories"
     return new Map<string, string>();
   }
   const db = yield* Db;
-  const rows = yield* db.use("catalog.backfill.upsertCategories", async (client) =>
-    client
-      .insert(categories)
-      .values(
-        [...uniqueRecords.values()].map((record) => ({
-          id: crypto.randomUUID(),
-          slug: record.slug,
-          label: record.label,
-          provenance: CATEGORY_CLASSIFIER_PROVENANCE,
-          createdAt: now,
-          updatedAt: now,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: categories.slug,
-        set: {
-          label: canonicalWinsOnConflictSql(categories.label, sql`excluded.label`),
-          provenance: canonicalWinsOnConflictSql(categories.provenance, sql`excluded.provenance`),
-          updatedAt: now,
-        },
-      })
-      .returning({ id: categories.id, slug: categories.slug }),
-  );
-  return new Map(rows.map((row) => [row.slug, row.id]));
+  const recordsToUpsert = [...uniqueRecords.values()];
+  const idsBySlug = new Map<string, string>();
+  for (let start = 0; start < recordsToUpsert.length; start += WRITE_BATCH_SIZE) {
+    const batch = recordsToUpsert.slice(start, start + WRITE_BATCH_SIZE);
+    const rows = yield* db.use("catalog.backfill.upsertCategories", async (client) =>
+      client
+        .insert(categories)
+        .values(
+          batch.map((record) => ({
+            id: crypto.randomUUID(),
+            slug: record.slug,
+            label: record.label,
+            provenance: CATEGORY_CLASSIFIER_PROVENANCE,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        )
+        .onConflictDoUpdate({
+          target: categories.slug,
+          set: {
+            label: canonicalWinsOnConflictSql(categories.label, sql`excluded.label`),
+            provenance: canonicalWinsOnConflictSql(categories.provenance, sql`excluded.provenance`),
+            updatedAt: now,
+          },
+        })
+        .returning({ id: categories.id, slug: categories.slug }),
+    );
+    for (const row of rows) {
+      idsBySlug.set(row.slug, row.id);
+    }
+  }
+  return idsBySlug;
 });
 
 /** The columns a classifier assignment row carries, whichever table it goes to. */
@@ -147,24 +159,28 @@ export const syncInferredFeedBatch = Effect.fn("catalog.backfill.syncBatch")(fun
   const feedIds = entries.map((entry) => entry.feed.id);
   const itemIds = entries.flatMap((entry) => entry.items.map((item) => item.id));
 
-  yield* db.use("catalog.backfill.deleteFeedClassifierRows", async (client) => {
-    await client
-      .delete(feedCategoryAssignments)
-      .where(
-        and(
-          inArray(feedCategoryAssignments.feedId, feedIds),
-          eq(feedCategoryAssignments.provenance, CATEGORY_CLASSIFIER_PROVENANCE),
-          eq(feedCategoryAssignments.modelId, classifier.model.modelId),
-        ),
-      );
-  });
-  if (itemIds.length > 0) {
+  for (let start = 0; start < feedIds.length; start += WRITE_BATCH_SIZE) {
+    const batch = feedIds.slice(start, start + WRITE_BATCH_SIZE);
+    yield* db.use("catalog.backfill.deleteFeedClassifierRows", async (client) => {
+      await client
+        .delete(feedCategoryAssignments)
+        .where(
+          and(
+            inArray(feedCategoryAssignments.feedId, batch),
+            eq(feedCategoryAssignments.provenance, CATEGORY_CLASSIFIER_PROVENANCE),
+            eq(feedCategoryAssignments.modelId, classifier.model.modelId),
+          ),
+        );
+    });
+  }
+  for (let start = 0; start < itemIds.length; start += WRITE_BATCH_SIZE) {
+    const batch = itemIds.slice(start, start + WRITE_BATCH_SIZE);
     yield* db.use("catalog.backfill.deleteItemClassifierRows", async (client) => {
       await client
         .delete(feedItemCategoryAssignments)
         .where(
           and(
-            inArray(feedItemCategoryAssignments.feedItemId, itemIds),
+            inArray(feedItemCategoryAssignments.feedItemId, batch),
             eq(feedItemCategoryAssignments.provenance, CATEGORY_CLASSIFIER_PROVENANCE),
             eq(feedItemCategoryAssignments.modelId, classifier.model.modelId),
           ),
@@ -196,11 +212,12 @@ export const syncInferredFeedBatch = Effect.fn("catalog.backfill.syncBatch")(fun
         : [];
     }),
   );
-  if (feedAssignments.length > 0) {
+  for (let start = 0; start < feedAssignments.length; start += WRITE_BATCH_SIZE) {
+    const batch = feedAssignments.slice(start, start + WRITE_BATCH_SIZE);
     yield* db.use("catalog.backfill.insertFeedClassifierRows", async (client) => {
       await client
         .insert(feedCategoryAssignments)
-        .values(feedAssignments)
+        .values(batch)
         .onConflictDoUpdate({
           target: [
             feedCategoryAssignments.feedId,
@@ -224,11 +241,12 @@ export const syncInferredFeedBatch = Effect.fn("catalog.backfill.syncBatch")(fun
       }),
     ),
   );
-  if (itemAssignments.length > 0) {
+  for (let start = 0; start < itemAssignments.length; start += WRITE_BATCH_SIZE) {
+    const batch = itemAssignments.slice(start, start + WRITE_BATCH_SIZE);
     yield* db.use("catalog.backfill.insertItemClassifierRows", async (client) => {
       await client
         .insert(feedItemCategoryAssignments)
-        .values(itemAssignments)
+        .values(batch)
         .onConflictDoUpdate({
           target: [
             feedItemCategoryAssignments.feedItemId,
@@ -253,47 +271,50 @@ export const recordFeedBackfillStatuses = Effect.fn("catalog.backfill.recordStat
     return;
   }
   const db = yield* Db;
-  yield* db.use("catalog.backfill.recordStatuses", async (client) => {
-    await client
-      .insert(feedCategoryBackfillStatus)
-      .values(
-        records.map((record) => ({
-          feedId: record.feedId,
-          classifierMethod: classifier.model.classifierMethod,
-          modelId: classifier.model.modelId,
-          taxonomyVersion: classifier.model.taxonomyVersion,
-          status: record.status,
-          feedClassifierCategories: record.stats.feedClassifierCategories,
-          feedClassifierFallbackSuppressed: record.stats.feedClassifierFallbackSuppressed,
-          itemsScanned: record.stats.itemsScanned,
-          itemsWithClassifierCategories: record.stats.itemsWithClassifierCategories,
-          itemClassifierAbstentions: record.stats.itemClassifierAbstentions,
-          lastError: record.errorMessage,
-          processedAt: record.status === BACKFILL_STATUS_PROCESSED ? now : null,
-          failedAt: record.status === BACKFILL_STATUS_FAILED ? now : null,
-          createdAt: now,
-          updatedAt: now,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: [
-          feedCategoryBackfillStatus.feedId,
-          feedCategoryBackfillStatus.classifierMethod,
-          feedCategoryBackfillStatus.modelId,
-          feedCategoryBackfillStatus.taxonomyVersion,
-        ],
-        set: {
-          status: sql`excluded.status`,
-          feedClassifierCategories: sql`excluded.feed_classifier_categories`,
-          feedClassifierFallbackSuppressed: sql`excluded.feed_classifier_fallback_suppressed`,
-          itemsScanned: sql`excluded.items_scanned`,
-          itemsWithClassifierCategories: sql`excluded.items_with_classifier_categories`,
-          itemClassifierAbstentions: sql`excluded.item_classifier_abstentions`,
-          lastError: sql`excluded.last_error`,
-          processedAt: sql`excluded.processed_at`,
-          failedAt: sql`excluded.failed_at`,
-          updatedAt: now,
-        },
-      });
-  });
+  for (let start = 0; start < records.length; start += WRITE_BATCH_SIZE) {
+    const batch = records.slice(start, start + WRITE_BATCH_SIZE);
+    yield* db.use("catalog.backfill.recordStatuses", async (client) => {
+      await client
+        .insert(feedCategoryBackfillStatus)
+        .values(
+          batch.map((record) => ({
+            feedId: record.feedId,
+            classifierMethod: classifier.model.classifierMethod,
+            modelId: classifier.model.modelId,
+            taxonomyVersion: classifier.model.taxonomyVersion,
+            status: record.status,
+            feedClassifierCategories: record.stats.feedClassifierCategories,
+            feedClassifierFallbackSuppressed: record.stats.feedClassifierFallbackSuppressed,
+            itemsScanned: record.stats.itemsScanned,
+            itemsWithClassifierCategories: record.stats.itemsWithClassifierCategories,
+            itemClassifierAbstentions: record.stats.itemClassifierAbstentions,
+            lastError: record.errorMessage,
+            processedAt: record.status === BACKFILL_STATUS_PROCESSED ? now : null,
+            failedAt: record.status === BACKFILL_STATUS_FAILED ? now : null,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        )
+        .onConflictDoUpdate({
+          target: [
+            feedCategoryBackfillStatus.feedId,
+            feedCategoryBackfillStatus.classifierMethod,
+            feedCategoryBackfillStatus.modelId,
+            feedCategoryBackfillStatus.taxonomyVersion,
+          ],
+          set: {
+            status: sql`excluded.status`,
+            feedClassifierCategories: sql`excluded.feed_classifier_categories`,
+            feedClassifierFallbackSuppressed: sql`excluded.feed_classifier_fallback_suppressed`,
+            itemsScanned: sql`excluded.items_scanned`,
+            itemsWithClassifierCategories: sql`excluded.items_with_classifier_categories`,
+            itemClassifierAbstentions: sql`excluded.item_classifier_abstentions`,
+            lastError: sql`excluded.last_error`,
+            processedAt: sql`excluded.processed_at`,
+            failedAt: sql`excluded.failed_at`,
+            updatedAt: now,
+          },
+        });
+    });
+  }
 });

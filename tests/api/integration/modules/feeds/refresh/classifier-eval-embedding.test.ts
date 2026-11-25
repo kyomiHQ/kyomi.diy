@@ -22,8 +22,16 @@ import { CLASSIFIER_EVAL_STORED_CASES } from "./classifier-eval-stored-fixture";
 const enabled = process.env.CLASSIFIER_EVAL === "1" || process.env.CLASSIFIER_EVAL_OFFLINE === "1";
 const config: EmbeddingClassifierConfig = { encode: cachedEmbeddings(embeddingsCacheFile("eval")) };
 
+// The owner accepted the static model's measured stored-set regression on 2026-11-25.
+// Freeze that exact 512-dimensional baseline: future changes must not lower it. BGE-M3's
+// former gates (F1 .65, labeled top-1 .75, abstention <= .15) remain improvement targets,
+// not claims that the static model matches transformer quality. See docs/architecture/embeddings.md.
 const FLOORS = {
-  stored: { f1: 0.65, maxAbstention: 0.15, labeledTop1: 0.75 },
+  stored: {
+    f1: 0.6223404255319149,
+    maxAbstention: 0.1246376811594203,
+    labeledTop1: 0.717948717948718,
+  },
   // Synthetic headlines; the head learned from real articles, so it is held to a lower floor.
   regression: { f1: 0.6 },
   field: { f1: 0.65 },
@@ -63,13 +71,14 @@ function report(name: string, predictions: readonly Prediction[]) {
 }
 
 describe.skipIf(!enabled)("embedding classifier eval (local static embeddings)", () => {
-  test("labels stored articles above the floors", async () => {
+  test("preserves the accepted static stored-article baseline", async () => {
     const result = report(
       "Stored articles",
       await runEmbeddingClassifier(CLASSIFIER_EVAL_STORED_CASES),
     );
 
-    expect(result.f1).toBeGreaterThanOrEqual(FLOORS.stored.f1);
+    // Equivalent F1 formulas differ by one floating-point ULP; no prediction-level slack.
+    expect(result.f1 + Number.EPSILON).toBeGreaterThanOrEqual(FLOORS.stored.f1);
     expect(result.abstention).toBeLessThanOrEqual(FLOORS.stored.maxAbstention);
   }, 120_000);
 
@@ -94,7 +103,7 @@ describe.skipIf(!enabled)("embedding classifier eval (local static embeddings)",
   }, 120_000);
 
   test("keeps held-out field cases above their floor", async () => {
-    // Never tuned on: the cutoffs were chosen on stored articles only.
+    // Keep this small field set separate; candidate selection uses feed-grouped training CV.
     const result = report(
       "Held-out field cases",
       await runEmbeddingClassifier(CLASSIFIER_EVAL_FIXTURE.filter((c) => c.source === "field")),
