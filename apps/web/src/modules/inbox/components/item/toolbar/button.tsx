@@ -12,7 +12,10 @@ import { cn } from "@kyomi/ui/lib/utils";
 const TOOLBAR_ICON_CLASS = "size-5";
 const TOOLBAR_TOOLTIP_SIDE_OFFSET = 6;
 
-export type ItemToolbarCorners = { cornerRadius: number; cornerSmoothing: number };
+export type ItemToolbarCorners = {
+  cornerRadius: Parameters<typeof useSquircle>[0];
+  cornerSmoothing: number;
+};
 
 export function ItemActionButton({
   corners,
@@ -32,7 +35,7 @@ export function ItemActionButton({
         className,
       )}
       size="icon-lg"
-      style={{ ...buttonStyle, borderRadius: corners.cornerRadius }}
+      style={{ ...buttonStyle, borderRadius: fill.style.borderRadius }}
       variant="ghost-muted"
     >
       <span

@@ -21,6 +21,10 @@ const ITEM_GUTTER_CLASS = "px-0";
 const ITEM_SEPARATOR_CLASS = "left-0 right-0";
 const ITEM_HOVER_RADIUS_PX = 20;
 const ITEM_HOVER_CORNER_SMOOTHING = 0.6;
+const ITEM_FOOTER_CORNERS = {
+  cornerRadius: "30%",
+  cornerSmoothing: ITEM_HOVER_CORNER_SMOOTHING,
+} as const;
 
 export const Item = memo(function Item({
   item,
@@ -73,11 +77,6 @@ export const Item = memo(function Item({
     ITEM_HOVER_RADIUS_PX,
     ITEM_HOVER_CORNER_SMOOTHING,
   );
-  // Subtract the existing footer bottom padding (pb-3 / pb-4) from the row radius.
-  const footerCorners = {
-    cornerRadius: ITEM_HOVER_RADIUS_PX - (isCompact ? 12 : 16),
-    cornerSmoothing: ITEM_HOVER_CORNER_SMOOTHING,
-  };
   const selectItem = () => {
     onSelect(item);
   };
@@ -178,8 +177,8 @@ export const Item = memo(function Item({
             : "[--inbox-footer-corner:var(--corner-sm)]",
         )}
       >
-        <ItemMeta item={item} metaFontSizePx={metaFontSizePx} corners={footerCorners} />
-        <ItemInlineToolbar item={item} corners={footerCorners} />
+        <ItemMeta item={item} metaFontSizePx={metaFontSizePx} />
+        <ItemInlineToolbar item={item} corners={ITEM_FOOTER_CORNERS} />
       </CardFooter>
     </Card>
   );
@@ -227,15 +226,7 @@ function ItemSeparators({
   );
 }
 
-function ItemMeta({
-  item,
-  metaFontSizePx,
-  corners,
-}: {
-  item: InboxItem;
-  metaFontSizePx: number;
-  corners: { cornerRadius: number; cornerSmoothing: number };
-}) {
+function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: number }) {
   const continueLabel = getContinueLabel(item);
   if (!item.isSaved && !continueLabel && item.categories.length === 0) {
     return null;
@@ -265,7 +256,11 @@ function ItemMeta({
           {continueLabel}
         </Badge>
       ) : null}
-      <Categories categories={item.categories} corners={corners} fontSizePx={metaFontSizePx} />
+      <Categories
+        categories={item.categories}
+        corners={ITEM_FOOTER_CORNERS}
+        fontSizePx={metaFontSizePx}
+      />
     </div>
   );
 }

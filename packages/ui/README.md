@@ -169,7 +169,8 @@ clickable above it.
 
 - `size="sm"` for compact rail rows (14px titles over 12px meta), `default` for full-width lists.
 - `shape="squircle"` draws continuous corners with a measured clip path; `rounded` uses CSS.
-  `useSquircle` also returns the measured `path`, for drawing an edge the clip would cut.
+  `useSquircle` accepts a pixel radius or a percentage of the measured shorter side. It also
+  returns the measured `path` for drawing an edge outside the clip.
 - `selected` keeps the hover surface on, e.g. while bulk-selecting.
 - `ItemActions reveal` dims actions until the row is hovered or focused.
 

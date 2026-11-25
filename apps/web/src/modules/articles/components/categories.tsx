@@ -9,7 +9,7 @@ type CategoriesProps = {
   /** Meta font size in px, kept in sync with the footer's saved chip and timestamp. */
   fontSizePx: number;
   className?: string;
-  corners?: { cornerRadius: number; cornerSmoothing: number };
+  corners?: { cornerRadius: Parameters<typeof useSquircle>[0]; cornerSmoothing: number };
 };
 
 /**
