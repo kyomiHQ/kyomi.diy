@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  embeddingsWorkerUrlFromEnv,
   findMissingFeatureCredentials,
   findWeakProductionSettings,
   httpsUrlFromEnv,
@@ -10,9 +9,9 @@ import {
 describe("env https URL validation", () => {
   test("accepts https URLs and http URLs on localhost", () => {
     for (const value of [
-      "https://kyomi-embeddings.example.workers.dev/embed",
-      "http://localhost:8787/embed",
-      "http://127.0.0.1:8787/embed",
+      "https://kyomi-gateway.example.workers.dev/translate",
+      "http://localhost:8787/translate",
+      "http://127.0.0.1:8787/translate",
     ]) {
       expect(httpsUrlFromEnv.safeParse(value).success).toBe(true);
     }
@@ -21,24 +20,14 @@ describe("env https URL validation", () => {
   test("rejects undecrypted dotenvx values, other schemes, and remote plain http", () => {
     for (const value of [
       "encrypted:BAk0bTE2MvmlhtGKTPDt",
-      "localhost:8787/embed",
+      "localhost:8787/translate",
       "javascript:alert(1)",
-      "ftp://example.com/embed",
+      "ftp://example.com/translate",
       "file:///etc/passwd",
-      "http://kyomi-embeddings.example.workers.dev/embed",
+      "http://kyomi-gateway.example.workers.dev/translate",
     ]) {
       expect(httpsUrlFromEnv.safeParse(value).success).toBe(false);
     }
-  });
-
-  test("requires the embeddings Worker URL to point at /embed", () => {
-    expect(
-      embeddingsWorkerUrlFromEnv.safeParse("https://kyomi-embeddings.example.workers.dev/embed")
-        .success,
-    ).toBe(true);
-    expect(
-      embeddingsWorkerUrlFromEnv.safeParse("https://kyomi-embeddings.example.workers.dev").success,
-    ).toBe(false);
   });
 });
 
@@ -48,29 +37,6 @@ test("enabling translation requires its own route and token", () => {
     { flag: "FEATURE_ARTICLE_TRANSLATIONS", key: "CLOUDFLARE_TRANSLATIONS_TOKEN" },
   ]);
   expect(findMissingFeatureCredentials({ FEATURE_ARTICLE_TRANSLATIONS: false })).toEqual([]);
-});
-
-describe("env embeddings Worker pair validation", () => {
-  test("reports the token when only the URL is set, and the URL when only the token is set", () => {
-    expect(
-      findMissingFeatureCredentials({
-        CLOUDFLARE_EMBEDDINGS_URL: "https://kyomi-embeddings.example.workers.dev/embed",
-      }),
-    ).toEqual([{ flag: "CLOUDFLARE_EMBEDDINGS_URL", key: "CLOUDFLARE_EMBEDDINGS_TOKEN" }]);
-    expect(findMissingFeatureCredentials({ CLOUDFLARE_EMBEDDINGS_TOKEN: "token" })).toEqual([
-      { flag: "CLOUDFLARE_EMBEDDINGS_TOKEN", key: "CLOUDFLARE_EMBEDDINGS_URL" },
-    ]);
-  });
-
-  test("accepts both values together or neither", () => {
-    expect(
-      findMissingFeatureCredentials({
-        CLOUDFLARE_EMBEDDINGS_URL: "https://kyomi-embeddings.example.workers.dev/embed",
-        CLOUDFLARE_EMBEDDINGS_TOKEN: "token",
-      }),
-    ).toEqual([]);
-    expect(findMissingFeatureCredentials({})).toEqual([]);
-  });
 });
 
 describe("env feature-flag credential validation", () => {

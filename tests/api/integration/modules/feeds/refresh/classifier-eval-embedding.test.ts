@@ -1,17 +1,11 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { describe, expect, test } from "bun:test";
 import {
   classifyItemEmbeddings,
   MAX_CLASSIFIER_LABELS,
   scoreItemEmbeddings,
   type EmbeddingClassifierConfig,
 } from "@kyomi/ingest";
-import { embeddingClassifierConfig } from "@config/embeddings";
-import {
-  cachedEmbeddingsFetch,
-  embeddingsCacheFile,
-  embeddingsUpstreamFromEnv,
-} from "./embedding-cache";
+import { cachedEmbeddings, embeddingsCacheFile } from "./embedding-cache";
 import {
   accumulateConfusion,
   f1,
@@ -24,27 +18,9 @@ import {
 import { CLASSIFIER_EVAL_FIXTURE, type ClassifierEvalCase } from "./classifier-eval-fixture";
 import { CLASSIFIER_EVAL_STORED_CASES } from "./classifier-eval-stored-fixture";
 
-/**
- * Live eval of the embedding classifier as production configures it for the Cloudflare BGE-M3
- * Worker: the provider's own cutoffs and secondary-label margin from `embeddingClassifierConfig`,
- * and MAX_CLASSIFIER_LABELS chip slots. Runs when the Worker credentials are set, or from the
- * offline embeddings cache alone (see embedding-cache.ts) when `CLASSIFIER_EVAL_OFFLINE=1` is set,
- * and is skipped otherwise. The offline run is opt-in because a cache left over from before a
- * fixture edit is missing texts, and a cache miss without credentials fails the run.
- *
- * The floors are a ratchet against a model, head, card, or rule change that silently mislabels or
- * stops labeling articles: the earlier 0.6 card cutoff, for example, left 99% of stored articles
- * unlabeled under BGE-M3. Raise them when a change genuinely improves the scores.
- */
-
-const upstream = embeddingsUpstreamFromEnv();
-const cacheFile = embeddingsCacheFile("eval");
-const enabled =
-  Boolean(upstream) || (process.env.CLASSIFIER_EVAL_OFFLINE === "1" && existsSync(cacheFile));
-const config = embeddingClassifierConfig(undefined, {
-  CLOUDFLARE_EMBEDDINGS_URL: upstream?.url ?? "https://embeddings-cache.invalid/embed",
-  CLOUDFLARE_EMBEDDINGS_TOKEN: upstream?.token ?? "embeddings-cache",
-}) as EmbeddingClassifierConfig;
+/** Local production classifier evaluation, opt-in because it requires the compiled model. */
+const enabled = process.env.CLASSIFIER_EVAL === "1" || process.env.CLASSIFIER_EVAL_OFFLINE === "1";
+const config: EmbeddingClassifierConfig = { encode: cachedEmbeddings(embeddingsCacheFile("eval")) };
 
 const FLOORS = {
   stored: { f1: 0.65, maxAbstention: 0.15, labeledTop1: 0.75 },
@@ -52,8 +28,6 @@ const FLOORS = {
   regression: { f1: 0.6 },
   field: { f1: 0.65 },
 };
-
-const originalFetch = globalThis.fetch;
 
 async function runEmbeddingClassifier(cases: readonly ClassifierEvalCase[]): Promise<Prediction[]> {
   const inputs = cases.map((case_) => ({ ...case_, maxLabels: MAX_CLASSIFIER_LABELS }));
@@ -88,15 +62,7 @@ function report(name: string, predictions: readonly Prediction[]) {
   return { f1: f1(overall), abstention };
 }
 
-beforeAll(() => {
-  globalThis.fetch = cachedEmbeddingsFetch({ cacheFile, upstream, realFetch: originalFetch });
-});
-
-afterAll(() => {
-  globalThis.fetch = originalFetch;
-});
-
-describe.skipIf(!enabled)("embedding classifier eval (Cloudflare BGE-M3)", () => {
+describe.skipIf(!enabled)("embedding classifier eval (local static embeddings)", () => {
   test("labels stored articles above the floors", async () => {
     const result = report(
       "Stored articles",

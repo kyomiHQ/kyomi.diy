@@ -101,3 +101,5 @@ export {
 
 export { buildArticleIdentity, normalizeArticleUrl } from "./lib/article-identity";
 export { decodeHtmlEntities } from "./lib/html-entities";
+
+export { encodeTexts, EMBEDDING_DIMENSIONS, EMBEDDING_MODEL_ID } from "./services/embeddings";

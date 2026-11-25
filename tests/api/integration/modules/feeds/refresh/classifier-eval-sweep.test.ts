@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
@@ -11,7 +11,7 @@ import {
   type CategoryScore,
   type CategorySelectionRule,
 } from "@kyomi/ingest";
-import { cachedEmbeddingsFetch, embeddingsCacheFile } from "./embedding-cache";
+import { embeddingsCacheFile } from "./embedding-cache";
 import { CLASSIFIER_EVAL_FIXTURE, type ClassifierEvalCase } from "./classifier-eval-fixture";
 import { CLASSIFIER_EVAL_STORED_CASES } from "./classifier-eval-stored-fixture";
 import {
@@ -28,11 +28,10 @@ import {
   readJsonl,
   SWEEP_ENABLED,
   sweepConfig as config,
-  sweepUpstream as upstream,
 } from "./classifier-eval-sweep-setup";
 
 /**
- * Rule sweep for the BGE-M3 embedding classifier. Opt-in (`CLASSIFIER_SWEEP=1`) because it prints
+ * Rule sweep for the local embedding classifier. Opt-in (`CLASSIFIER_SWEEP=1`) because it prints
  * tables for a human to read instead of asserting. The article rule is chosen by cross-validation
  * on the training articles (`category:train`), never here: this reports how the production rule
  * and its neighbours do on the stored-article set, with regression, coverage, and held-out field
@@ -75,8 +74,6 @@ type CoverageRow = {
   explicitFeed: string[];
   keywordFeed: string[];
 };
-
-const originalFetch = globalThis.fetch;
 
 function predict(scored: readonly Scored[], rule: CategorySelectionRule) {
   return scored.map(({ case: case_, scores }) => ({
@@ -123,19 +120,7 @@ async function scoreCases(cases: readonly ClassifierEvalCase[]): Promise<Scored[
   return cases.map((case_) => ({ case: case_, scores: scores.get(case_.id) ?? [] }));
 }
 
-beforeAll(() => {
-  globalThis.fetch = cachedEmbeddingsFetch({
-    cacheFile: embeddingsCacheFile("eval"),
-    upstream,
-    realFetch: originalFetch,
-  });
-});
-
-afterAll(() => {
-  globalThis.fetch = originalFetch;
-});
-
-describe.skipIf(!SWEEP_ENABLED)("embedding classifier threshold sweep (BGE-M3)", () => {
+describe.skipIf(!SWEEP_ENABLED)("embedding classifier threshold sweep (local)", () => {
   test("sweeps the item floor and secondary margin on stored articles", async () => {
     const stored = await scoreCases(CLASSIFIER_EVAL_STORED_CASES);
     expect(stored.every((entry) => entry.scores.length > 0)).toBe(true);
@@ -219,11 +204,6 @@ describe.skipIf(!SWEEP_ENABLED)("embedding classifier threshold sweep (BGE-M3)",
   test.skipIf(!process.env.CLASSIFIER_COVERAGE_SAMPLE)(
     "replays the rules over stored articles to measure coverage",
     async () => {
-      globalThis.fetch = cachedEmbeddingsFetch({
-        cacheFile: embeddingsCacheFile("coverage"),
-        upstream,
-        realFetch: originalFetch,
-      });
       const rows = readJsonl<CoverageRow>(process.env.CLASSIFIER_COVERAGE_SAMPLE!);
       const itemScores = await scoreItemEmbeddings(rows, config);
       const feedRows = [...new Map(rows.map((r) => [r.feedId, r])).values()];

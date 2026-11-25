@@ -131,16 +131,16 @@ export async function loadCases(): Promise<EvalCase[]> {
 }
 
 /**
- * Calls Workers AI through the `POST /chat` route on the Kyomi embeddings Worker
- * (apps/ai-gateway), reusing CLOUDFLARE_EMBEDDINGS_URL's host and token.
+ * Calls Workers AI through the `POST /chat` route on the Kyomi AI gateway
+ * (apps/ai-gateway), using its independent chat URL and token.
  */
 export const workerChat: ChatCall = async (body) => {
-  const embedUrl = process.env.CLOUDFLARE_EMBEDDINGS_URL;
-  const token = process.env.CLOUDFLARE_EMBEDDINGS_TOKEN;
-  if (!embedUrl || !token) {
-    throw new Error("CLOUDFLARE_EMBEDDINGS_URL and CLOUDFLARE_EMBEDDINGS_TOKEN must be set");
+  const chatUrl = process.env.CLOUDFLARE_CHAT_URL;
+  const token = process.env.CLOUDFLARE_CHAT_TOKEN;
+  if (!chatUrl || !token) {
+    throw new Error("CLOUDFLARE_CHAT_URL and CLOUDFLARE_CHAT_TOKEN must be set");
   }
-  const response = await fetch(new URL("/chat", embedUrl), {
+  const response = await fetch(chatUrl, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify(body),

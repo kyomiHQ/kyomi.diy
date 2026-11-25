@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { Effect, Layer } from "effect";
 import { getTableName } from "drizzle-orm";
 import { embeddingModelInfo, type EmbeddingClassifierConfig } from "@kyomi/ingest";
@@ -8,46 +8,27 @@ import { fakeDb, recordingLogger } from "@api-tests/support/layers";
 import { FAKE_CATEGORY_MODEL } from "../../feeds/refresh/fake-category-model";
 
 const EMBEDDING_MODEL_ID = embeddingModelInfo({
-  apiKey: "test-key",
-  apiUrl: "http://127.0.0.1/embed",
   categoryModel: FAKE_CATEGORY_MODEL,
 }).modelId;
 
-/**
- * A real embeddings endpoint on a loopback port. The embeddings client lives in `@kyomi/ingest`
- * (plain `fetch`, no injection point), so the test points `apiUrl` at this server rather than
- * patching `globalThis.fetch`.
- */
+/** Inject the plain-package encoder while exercising the real classification and persistence path. */
 type EmbeddingsRequest = { input: string[] };
-const servers: Array<{ stop: (closeActiveConnections?: boolean) => void }> = [];
-
 function embeddingsWorker(
-  respond: (body: EmbeddingsRequest) => Response = (body) => embeddingsResponse(body, UNIT_X),
+  respond: (body: EmbeddingsRequest) => number[][] = (body) => embeddingsResponse(body, UNIT_X),
 ) {
   const requests: EmbeddingsRequest[] = [];
-  const server = Bun.serve({
-    port: 0,
-    hostname: "127.0.0.1",
-    fetch: async (request) => {
-      const body = (await request.json()) as EmbeddingsRequest;
+  const config: EmbeddingClassifierConfig = {
+    categoryModel: FAKE_CATEGORY_MODEL,
+    encode: async (texts) => {
+      const body = { input: [...texts] };
       requests.push(body);
       return respond(body);
     },
-  });
-  servers.push(server);
-  const config: EmbeddingClassifierConfig = {
-    apiKey: "test-key",
-    apiUrl: `http://127.0.0.1:${server.port}/embed`,
-    categoryModel: FAKE_CATEGORY_MODEL,
   };
   return { requests, config };
 }
-
 function embeddingsResponse(body: EmbeddingsRequest, vector: number[]) {
-  return new Response(
-    JSON.stringify({ data: body.input.map((_, index) => ({ embedding: vector, index })) }),
-    { status: 200 },
-  );
+  return body.input.map(() => vector);
 }
 
 function reclassify(
@@ -164,12 +145,6 @@ function createCategoryDb(
 
   return db;
 }
-
-afterEach(() => {
-  for (const server of servers.splice(0)) {
-    server.stop(true);
-  }
-});
 
 describe("reclassifyExtractedFeedItem", () => {
   test("writes keyword item rows when embedding classification is not configured", async () => {
@@ -301,7 +276,7 @@ describe("reclassifyExtractedFeedItem", () => {
     expect(inputs[0]).not.toContain("Subscribe to our newsletter");
   });
 
-  test("clears classifier item rows without calling the embeddings Worker when explicit labels fill the chip slots", async () => {
+  test("clears classifier item rows without calling the encoder when explicit labels fill the chip slots", async () => {
     const fake = createCategoryDb({ explicitLabels: ["AI & ML", "Business & Startups"] });
     const worker = embeddingsWorker();
 
@@ -324,7 +299,9 @@ describe("reclassifyExtractedFeedItem", () => {
       modelId: EMBEDDING_MODEL_ID,
     };
     const fake = createCategoryDb({ existingAssignments: [existing] });
-    const worker = embeddingsWorker(() => new Response("temporary outage", { status: 503 }));
+    const worker = embeddingsWorker(() => {
+      throw new Error("encoder unavailable");
+    });
 
     const logs = await reclassify(fake, "Extracted full text", worker.config);
 

@@ -226,10 +226,7 @@ describe("runFeedRefresh classifier fallback", () => {
         lastRefreshFailedAt: null,
       },
     });
-    globalThis.fetch = (async (url: string) => {
-      if (url === "https://fake-embeddings.test/embed") {
-        return new Response("rate limited", { status: 429 });
-      }
+    globalThis.fetch = (async () => {
       const response = new Response(
         `<?xml version="1.0"?>
         <rss version="2.0">
@@ -261,8 +258,9 @@ describe("runFeedRefresh classifier fallback", () => {
 
     const result = await runFeedRefresh(fake as never, "feed-1", undefined, {
       embeddingClassifier: {
-        apiKey: "test-key",
-        apiUrl: "https://fake-embeddings.test/embed",
+        encode: async () => {
+          throw new Error("encoder unavailable");
+        },
         categoryModel: FAKE_CATEGORY_MODEL,
       },
     });

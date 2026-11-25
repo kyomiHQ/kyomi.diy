@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
   classifyFeedEmbedding,
   classifyItemEmbeddings,
@@ -7,17 +7,10 @@ import {
 } from "@kyomi/ingest";
 import { FAKE_CATEGORY_MODEL } from "./fake-category-model";
 
-const originalFetch = globalThis.fetch;
 const FAKE_CONFIG: EmbeddingClassifierConfig = {
-  apiKey: "test-key",
-  apiUrl: "https://fake-embeddings.test/embed",
   categoryModel: FAKE_CATEGORY_MODEL,
 };
 const UNIT_X = [1, 0, 0];
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
 
 describe("embedding requests at scale", () => {
   // Halfway between Software Engineering and no category: the fake head gives it about 0.5.
@@ -43,18 +36,11 @@ describe("embedding requests at scale", () => {
   /** Embeds every text as `itemVector`, failing request number `failRequest`. */
   function fakeEmbeddingsApi(options: { itemVector?: number[]; failRequest?: number } = {}) {
     const requests: string[][] = [];
-    globalThis.fetch = (async (_url: string, init: RequestInit) => {
-      const body = JSON.parse(init.body as string) as { input: string[] };
-      requests.push(body.input);
-      if (requests.length === options.failRequest) {
-        return new Response("rate limited", { status: 429 });
-      }
-      const data = body.input.map((_, index) => ({
-        embedding: options.itemVector ?? UNIT_X,
-        index,
-      }));
-      return new Response(JSON.stringify({ data }), { status: 200 });
-    }) as unknown as typeof fetch;
+    FAKE_CONFIG.encode = async (texts) => {
+      requests.push([...texts]);
+      if (requests.length === options.failRequest) throw new Error("encoder failed");
+      return texts.map(() => options.itemVector ?? UNIT_X);
+    };
     return requests;
   }
 
@@ -73,7 +59,7 @@ describe("embedding requests at scale", () => {
   });
 
   test("embedTexts caps long texts and splits requests by total size", async () => {
-    // Long articles must not add up past the provider's per-request token limit.
+    // Bound CPU work per batch even though the encoder itself has no token limit.
     const requests = fakeEmbeddingsApi();
     const texts = Array.from({ length: 40 }, (_, index) => `${index}`.padEnd(20_000, "x"));
 
@@ -116,7 +102,9 @@ describe("embedding requests at scale", () => {
   test("classifyItemEmbeddings throws when every request fails", async () => {
     fakeEmbeddingsApi({ failRequest: 1 });
 
-    await expect(classifyItemEmbeddings(batchInputs(3), FAKE_CONFIG)).rejects.toThrow(/429/);
+    await expect(classifyItemEmbeddings(batchInputs(3), FAKE_CONFIG)).rejects.toThrow(
+      "encoder failed",
+    );
   });
 
   test("classifyItemEmbeddings applies itemMinProbability", async () => {

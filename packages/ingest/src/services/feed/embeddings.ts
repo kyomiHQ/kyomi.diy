@@ -1,4 +1,5 @@
 import { CANONICAL_CATEGORY_LABELS, MISCELLANEOUS_CATEGORY_LABEL } from "@kyomi/db";
+import { encodeTexts } from "../embeddings";
 import { decodeCategoryModel, scoreWithCategoryModel, type CategoryModel } from "./category-model";
 import { CATEGORY_MODEL_WEIGHTS } from "./category-model-weights";
 import type { ClassifierModelInfo } from "./categories";
@@ -14,14 +15,10 @@ import type {
 } from "./classifier";
 import { MAX_CLASSIFIER_LABELS } from "./classifier";
 
-/** Kyomi's embeddings Worker (apps/ai-gateway), which serves BGE-M3 from Workers AI. */
+/** Local encoder and trained category-head configuration. No remote provider is required. */
 export type EmbeddingClassifierConfig = {
-  /** Bearer token for the Worker. */
-  apiKey: string;
-  /** The Worker's `/embed` URL. */
-  apiUrl: string;
-  /** Optional per-request timeout for best-effort callers that must not block user flows. */
-  timeoutMs?: number;
+  /** Explicit dependency seam for deterministic classifier tests. Production uses encoders. */
+  encode?: (texts: readonly string[]) => Promise<number[][]>;
   /** Overrides the trained article head; for tests. */
   categoryModel?: CategoryModel;
   /** Overrides the article head's minimum probability; for evals and tests. */
@@ -54,22 +51,16 @@ const ITEM_SECONDARY_MARGIN = 0.4;
 // often right as the first. A feed below the floor falls back to Miscellaneous.
 const FEED_MIN_PROBABILITY = 0.1;
 const FEED_SECONDARY_MARGIN = 0.05;
-// Inputs per embeddings request. Larger batches go out as several requests, so a slow or failed
-// request costs one chunk and every request stays inside its timeout.
-const EMBEDDING_REQUEST_MAX_INPUTS = 128;
-// Characters per embeddings request, so one request of long articles stays small.
-const EMBEDDING_REQUEST_MAX_CHARS = 200_000;
-// Per-text cap, the same head-and-tail cut the embeddings Worker applies, so the cache keys and
-// the Worker see the same text.
+// Preserve bounded batches and partial-progress behavior for bulk ingestion.
+const EMBEDDING_BATCH_MAX_INPUTS = 128;
+// Cap total text per batch as well as the number of inputs.
+const EMBEDDING_BATCH_MAX_CHARS = 200_000;
+// Preserve the text preparation used by training, evaluation, and classification.
 const MAX_CHARS_PER_INPUT = 6_000;
 // Characters of title, summary, and body embedded per article. The opening carries the topic;
 // later text is mostly related links, comments, and newsletter prompts that drag every
 // category's similarity down, so feed text and extracted full text are cut to the same head.
 const MAX_ITEM_TEXT_CHARS = 4_000;
-
-type EmbeddingsResponse = {
-  data: Array<{ embedding: number[]; index: number }>;
-};
 
 function capText(text: string): string {
   if (text.length <= MAX_CHARS_PER_INPUT) {
@@ -82,10 +73,10 @@ function capText(text: string): string {
 }
 
 /**
- * Caps each text and groups items into requests of at most EMBEDDING_REQUEST_MAX_INPUTS texts and
- * EMBEDDING_REQUEST_MAX_CHARS characters.
+ * Caps each text and groups items into batches of at most EMBEDDING_BATCH_MAX_INPUTS texts and
+ * EMBEDDING_BATCH_MAX_CHARS characters.
  */
-function requestBatches<T>(
+function embeddingBatches<T>(
   items: readonly T[],
   textOf: (item: T) => string,
 ): Array<{ items: T[]; texts: string[] }> {
@@ -95,8 +86,8 @@ function requestBatches<T>(
   for (const item of items) {
     const text = capText(textOf(item));
     const full =
-      current.texts.length >= EMBEDDING_REQUEST_MAX_INPUTS ||
-      chars + text.length > EMBEDDING_REQUEST_MAX_CHARS;
+      current.texts.length >= EMBEDDING_BATCH_MAX_INPUTS ||
+      chars + text.length > EMBEDDING_BATCH_MAX_CHARS;
     if (current.texts.length > 0 && full) {
       batches.push(current);
       current = { items: [], texts: [] };
@@ -112,61 +103,37 @@ function requestBatches<T>(
   return batches;
 }
 
-async function requestEmbeddings(
+async function encodeBatch(
   texts: readonly string[],
   config: EmbeddingClassifierConfig,
 ): Promise<number[][]> {
-  const controller = config.timeoutMs ? new AbortController() : null;
-  const timeout = controller ? setTimeout(() => controller.abort(), config.timeoutMs) : null;
-  try {
-    const response = await fetch(config.apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-      signal: controller?.signal,
-      body: JSON.stringify({ input: texts }),
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`Embeddings request failed (${response.status}): ${body}`);
-    }
-    const payload = (await response.json()) as Partial<EmbeddingsResponse>;
-    // The Worker returns `data` in input order; sorting by `index` keeps that true even if a
-    // future version reorders results.
-    const entries = Array.isArray(payload.data)
-      ? [...payload.data].sort((a, b) => a.index - b.index)
-      : [];
-    // Anything but one entry per input, indexed 0..n-1, would attach vectors to the wrong text.
-    if (
-      entries.length !== texts.length ||
-      entries.some((entry, position) => entry.index !== position)
-    ) {
-      throw new Error(
-        `Embeddings response did not match the request: ${entries.length} vectors for ${texts.length} inputs`,
-      );
-    }
-    return entries.map((entry) => entry.embedding);
-  } finally {
-    // Cleared after the body is read, so a stalled response body times out too.
-    if (timeout) {
-      clearTimeout(timeout);
-    }
+  const vectors = await (config.encode ?? encodeTexts)(texts);
+  const dimensions = vectors[0]?.length;
+  if (
+    vectors.length !== texts.length ||
+    !dimensions ||
+    vectors.some(
+      (vector) => vector.length !== dimensions || vector.some((value) => !Number.isFinite(value)),
+    )
+  ) {
+    throw new Error(
+      `Encoder returned invalid vectors: ${vectors.length} vectors for ${texts.length} inputs`,
+    );
   }
+  return vectors;
 }
 
 /**
  * Embeds input strings, returning one vector per input in the same order. Texts are capped and
- * sent in bounded requests, so `timeoutMs` bounds each request rather than the whole batch.
+ * encoded in bounded batches, yielding between batches to keep bulk work cooperative.
  */
 export async function embedTexts(
   texts: readonly string[],
-  config: EmbeddingClassifierConfig,
+  config: EmbeddingClassifierConfig = {},
 ): Promise<number[][]> {
   const vectors: number[][] = [];
-  for (const batch of requestBatches(texts, (text) => text)) {
-    vectors.push(...(await requestEmbeddings(batch.texts, config)));
+  for (const batch of embeddingBatches(texts, (text) => text)) {
+    vectors.push(...(await encodeBatch(batch.texts, config)));
   }
   return vectors;
 }
@@ -207,6 +174,11 @@ function categoryModelFor(config: EmbeddingClassifierConfig): CategoryModel {
     return config.categoryModel;
   }
   defaultCategoryModel ??= decodeCategoryModel(CATEGORY_MODEL_WEIGHTS);
+  if (defaultCategoryModel.embeddingModelId !== EMBEDDING_CLASSIFIER_MODEL_ID) {
+    throw new Error(
+      "Category head was trained with a different encoder; retrain before starting Kyomi",
+    );
+  }
   return defaultCategoryModel;
 }
 
@@ -291,8 +263,8 @@ export async function scoreFeedEmbedding(
 }
 
 /**
- * Embeds items' title, summary, and opening text in bounded requests, returning each item's vector
- * by id. Items in a failed request are left out; the error is rethrown only when every request
+ * Embeds items' title, summary, and opening text in bounded batches, returning each item's vector
+ * by id. Items in a failed batch are left out; the error is rethrown only when every batch
  * failed.
  */
 export async function embedItemVectors(
@@ -301,10 +273,10 @@ export async function embedItemVectors(
 ): Promise<Map<string, number[]>> {
   const vectors = new Map<string, number[]>();
   let failure: unknown;
-  for (const batch of requestBatches(inputs, buildItemText)) {
+  for (const batch of embeddingBatches(inputs, buildItemText)) {
     let textEmbeddings: number[][];
     try {
-      textEmbeddings = await requestEmbeddings(batch.texts, config);
+      textEmbeddings = await encodeBatch(batch.texts, config);
     } catch (error) {
       failure = error;
       continue;
@@ -323,8 +295,8 @@ export async function embedItemVectors(
 }
 
 /**
- * Scores items with the trained article head, best first, in bounded embeddings requests. Items
- * in a failed request are left out of the result; the error is rethrown only when every request
+ * Scores items with the trained article head, best first, in bounded embedding batches. Items
+ * in a failed batch are left out of the result; the error is rethrown only when every batch
  * failed.
  */
 export async function scoreItemEmbeddings(
@@ -374,9 +346,9 @@ export async function classifyItemEmbedding(
 }
 
 /**
- * Classifies items in bounded embeddings requests. Items in a failed request are left out of the
+ * Classifies items in bounded embedding batches. Items in a failed batch are left out of the
  * result so callers keep those items' existing labels; the error is rethrown only when every
- * request failed.
+ * batch failed.
  */
 export async function classifyItemEmbeddings(
   inputs: readonly FeedItemEmbeddingBatchInput[],

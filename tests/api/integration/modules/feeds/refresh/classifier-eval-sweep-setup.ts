@@ -1,14 +1,16 @@
 import { readFileSync } from "node:fs";
-import type { CategorySelectionRule, EmbeddingClassifierConfig } from "@kyomi/ingest";
-import { embeddingsUpstreamFromEnv } from "./embedding-cache";
+import {
+  embedTexts,
+  type CategorySelectionRule,
+  type EmbeddingClassifierConfig,
+} from "@kyomi/ingest";
+import { cachedEmbeddings, embeddingsCacheFile } from "./embedding-cache";
 
 /** Shared setup for the opt-in (`CLASSIFIER_SWEEP=1`) article and feed rule sweeps. */
 
 export const SWEEP_ENABLED = process.env.CLASSIFIER_SWEEP === "1";
-export const sweepUpstream = embeddingsUpstreamFromEnv();
 export const sweepConfig: EmbeddingClassifierConfig = {
-  apiKey: sweepUpstream?.token ?? "embeddings-cache",
-  apiUrl: sweepUpstream?.url ?? "https://embeddings-cache.invalid/embed",
+  encode: cachedEmbeddings(embeddingsCacheFile("sweep")),
 };
 
 export function readJsonl<T>(path: string): T[] {
@@ -32,8 +34,5 @@ export async function prewarmFeedTexts(
   const texts = feeds.map((feed) =>
     [feed.feedTitle, feed.feedDescription].filter(Boolean).join(". "),
   );
-  await globalThis.fetch(sweepConfig.apiUrl, {
-    method: "POST",
-    body: JSON.stringify({ input: texts.filter(Boolean) }),
-  });
+  await embedTexts(texts.filter(Boolean), sweepConfig);
 }

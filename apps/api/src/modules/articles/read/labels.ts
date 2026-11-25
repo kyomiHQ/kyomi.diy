@@ -195,15 +195,9 @@ export function buildCategoryLabelsSql(
 )`;
 }
 
-type CategoryLabelsConfig = Pick<
-  Env,
-  "CATEGORY_CLASSIFIER_READ_MODE" | "CLOUDFLARE_EMBEDDINGS_URL" | "CLOUDFLARE_EMBEDDINGS_TOKEN"
->;
+type CategoryLabelsConfig = Pick<Env, "CATEGORY_CLASSIFIER_READ_MODE">;
 
 /** The category chip subquery for the configured classifier mode and active embedding model. */
 export function categoryLabelsFor(config: CategoryLabelsConfig): SQL<string[]> {
-  return buildCategoryLabelsSql(
-    config.CATEGORY_CLASSIFIER_READ_MODE,
-    activeEmbeddingModelId(config),
-  );
+  return buildCategoryLabelsSql(config.CATEGORY_CLASSIFIER_READ_MODE, activeEmbeddingModelId());
 }

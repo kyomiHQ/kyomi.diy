@@ -49,12 +49,6 @@ export const httpsUrlFromEnv = z
     { error: "must use https unless it points at localhost" },
   );
 
-/** The embeddings Worker's `/embed` route. */
-export const embeddingsWorkerUrlFromEnv = httpsUrlFromEnv.refine(
-  (value) => new URL(value).pathname.endsWith("/embed"),
-  { error: "must point at the Worker's /embed route" },
-);
-
 /**
  * A feature flag and the credentials it requires only when the flag is enabled. A string setting
  * used as the flag counts as enabled whenever it is set.
@@ -82,9 +76,6 @@ const FEATURE_CREDENTIAL_RULES: readonly FeatureCredentialRule[] = [
   { flag: "FEATURE_SOURCE_REDDIT", credentials: ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"] },
   { flag: "FEATURE_SOURCE_X", credentials: ["X_CLIENT_ID", "X_CLIENT_SECRET"] },
   { flag: "FEATURE_AI_ARTICLE_INTELLIGENCE", credentials: ["AI_PROVIDER", "AI_API_KEY"] },
-  // The embeddings Worker needs its URL and token together; either alone is a mistake.
-  { flag: "CLOUDFLARE_EMBEDDINGS_URL", credentials: ["CLOUDFLARE_EMBEDDINGS_TOKEN"] },
-  { flag: "CLOUDFLARE_EMBEDDINGS_TOKEN", credentials: ["CLOUDFLARE_EMBEDDINGS_URL"] },
 ];
 
 function isFlagEnabled(flag: unknown): boolean {
@@ -295,22 +286,13 @@ export function loadEnv(source: RawEnv = process.env) {
       FEED_ADMIN_USER_IDS: z.string().optional(),
       /** Shared secret accepted in `x-feed-admin-secret` as a backup admin control plane. */
       FEED_ADMIN_SHARED_SECRET: z.string().min(1).optional(),
-      /**
-       * Kyomi's Cloudflare embeddings Worker (`apps/ai-gateway`): its `/embed` URL and bearer token,
-       * for the embedding-based article classifier. Leave both unset to run feed refresh with only
-       * the deterministic keyword classifier; no FEATURE_* flag gates this, matching the MEILI_*
-       * pattern of "absent means fall back," not "absent means error."
-       */
-      CLOUDFLARE_EMBEDDINGS_URL: embeddingsWorkerUrlFromEnv.optional(),
       CLOUDFLARE_TRANSLATIONS_URL: translationWorkerUrl.optional(),
       CLOUDFLARE_TRANSLATIONS_TOKEN: z.string().min(1).optional(),
       FEATURE_ARTICLE_TRANSLATIONS: booleanFromEnv.default(false),
-      CLOUDFLARE_EMBEDDINGS_TOKEN: z.string().min(1).optional(),
       /**
        * Category read path. Embedding (the default) shows the trained head's labels for the active
        * embedding model and falls back to keyword rows wherever an article has none, so it never
-       * shows less than keyword; with no embeddings provider configured it reads keyword rows only.
-       * On the 345-article stored eval set the head scores F1 0.687 against keyword's 0.345.
+       * shows less than keyword. Embeddings are computed locally without provider credentials.
        */
       CATEGORY_CLASSIFIER_READ_MODE: z.enum(["keyword", "embedding"]).default("embedding"),
 

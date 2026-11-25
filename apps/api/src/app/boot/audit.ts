@@ -9,7 +9,6 @@ import {
 } from "@kyomi/db";
 import { Db } from "@adapters/db/service";
 import { activeEmbeddingModelId } from "@config/embeddings";
-import { AppConfig } from "@config/env/service";
 import { CatalogFileError, InvalidArguments } from "@modules/catalog/errors";
 import { positiveIntFlag, valueAfter } from "@shared/cli/args";
 import { rowsFromExecute } from "@shared/db/rows";
@@ -385,7 +384,7 @@ if (import.meta.main) {
     yield* ensureDatabaseReady({ commandName: "categories:audit", ensureSchema: true });
 
     const db = yield* Db;
-    const embeddingModelId = activeEmbeddingModelId(yield* AppConfig);
+    const embeddingModelId = activeEmbeddingModelId();
     const items = yield* db.use("categories.audit", (client) =>
       runCategoryAudit(
         args,

@@ -4,10 +4,12 @@ import type { CategoryScore } from "./embeddings";
 export const NO_CATEGORY_CLASS = "none";
 
 /**
- * A softmax classification head over L2-normalized BGE-M3 article vectors, trained on labeled
+ * A softmax classification head over L2-normalized article vectors, trained on labeled
  * articles by `bun run --cwd apps/api category:train`. Scores are class probabilities.
  */
 export type CategoryModel = {
+  /** Exact encoder identity; required on generated production heads. */
+  embeddingModelId?: string;
   version: string;
   labels: readonly string[];
   dimensions: number;

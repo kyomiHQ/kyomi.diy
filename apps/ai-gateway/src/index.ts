@@ -1,36 +1,18 @@
 /**
- * Kyomi's private Workers AI gateway serves embeddings, translation, and evaluation chat.
- * The API owns public authorization and durable work; this Worker validates its service tokens
- * and invokes Workers AI.
+ * Kyomi's private Workers AI gateway serves translation and evaluation chat.
+ * The API owns public authorization and durable work; this Worker validates separate
+ * TRANSLATIONS_TOKEN and CHAT_TOKEN service credentials and invokes allowlisted models.
+ * Embeddings run locally in @kyomi/ingest and are not served by this gateway.
  *
- * Contract (covered by tests/api/integration/cloudflare/embed.test.ts):
- * - `Authorization: Bearer <EMBEDDINGS_TOKEN>` is required. Without the secret the Worker refuses
- *   every request instead of accepting a guessable header.
- * - The body is `{ input: string | string[] }` with at most MAX_INPUTS_PER_REQUEST strings.
- * - The response is `{ data: [{ embedding, index }] }` with exactly one entry per input, in input
- *   order. Any provider failure, including a short result, fails the whole request with 502.
- *
- * It also serves `POST /chat` for the article translation eval (scripts/evals/translation), with
- * the same bearer token (covered by tests/api/integration/cloudflare/chat.test.ts):
- * - The body is `{ model, messages, max_tokens, reasoning_effort?, response_format? }`; `model`
- *   must be in CHAT_MODELS and `max_tokens` at most MAX_CHAT_OUTPUT_TOKENS.
- * - The response is `{ model, text, finish_reason, usage: { input_tokens, output_tokens } }`,
- *   normalized from whichever output shape the model returns. A provider failure, or a result
- *   with no text, is a 502.
- *
- * `POST /translate` accepts `{ text, source_language, target_language }` and is authenticated
- * with a separate TRANSLATIONS_TOKEN. It returns `{ translated_text, source_language,
- * target_language }`.
- *
- * Local development: `bunx wrangler dev`. Deploy: `bunx wrangler deploy`, after setting the token
- * with `bunx wrangler secret put EMBEDDINGS_TOKEN`.
+ * Local development: `bunx wrangler dev`. Deploy: `bunx wrangler deploy`, after setting
+ * each enabled route's token with `bunx wrangler secret put <TOKEN_NAME>`.
  */
 
 type Env = {
   AI: {
     run(model: string, input: Record<string, unknown>): Promise<unknown>;
   };
-  EMBEDDINGS_TOKEN?: string;
+  CHAT_TOKEN?: string;
   TRANSLATIONS_TOKEN?: string;
 };
 
@@ -39,25 +21,10 @@ const CHAT_MODELS = new Set(["@cf/openai/gpt-oss-120b", "@cf/deepseek-ai/deepsee
 const MAX_CHAT_OUTPUT_TOKENS = 32_768;
 const MAX_CHAT_INPUT_CHARS = 400_000;
 
-const EMBEDDING_MODEL = "@cf/baai/bge-m3";
 const TRANSLATION_MODEL = "@cf/meta/m2m100-1.2b";
-const MAX_CHARS_PER_INPUT = 6_000;
 const MAX_TRANSLATION_CHARS = 6_000;
-const MAX_INPUTS_PER_BATCH = 8;
-// Workers AI calls in flight at once for one request.
-const MAX_CONCURRENT_BATCHES = 4;
-// The embeddings client sends at most 128 inputs per request; this bounds anything else.
-const MAX_INPUTS_PER_REQUEST = 512;
 
 const encoder = new TextEncoder();
-
-function capText(text: string): string {
-  if (text.length <= MAX_CHARS_PER_INPUT) {
-    return text;
-  }
-
-  return `${text.slice(0, 4_500)}\n\n[truncated]\n\n${text.slice(-1_500)}`;
-}
 
 function bearerToken(request: Request): string | null {
   const authorization = request.headers.get("Authorization");
@@ -76,22 +43,6 @@ async function tokenMatches(provided: string, expected: string): Promise<boolean
     difference |= actual[index]! ^ wanted[index]!;
   }
   return difference === 0;
-}
-
-function inputTexts(body: unknown): string[] | null {
-  const input =
-    typeof body === "object" && body !== null ? (body as { input?: unknown }).input : undefined;
-  if (typeof input === "string") {
-    return [input];
-  }
-  if (
-    Array.isArray(input) &&
-    input.length > 0 &&
-    input.every((value) => typeof value === "string")
-  ) {
-    return input;
-  }
-  return null;
 }
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
@@ -299,12 +250,11 @@ export default {
       return Response.json({ ok: true });
     }
 
-    if (request.method !== "POST" || !["/embed", "/chat", "/translate"].includes(url.pathname)) {
+    if (request.method !== "POST" || !["/chat", "/translate"].includes(url.pathname)) {
       return new Response("Not found", { status: 404 });
     }
 
-    const expectedToken =
-      url.pathname === "/translate" ? env.TRANSLATIONS_TOKEN : env.EMBEDDINGS_TOKEN;
+    const expectedToken = url.pathname === "/translate" ? env.TRANSLATIONS_TOKEN : env.CHAT_TOKEN;
     if (!expectedToken) {
       console.error(`${url.pathname} Worker token is not set; refusing requests`);
       return Response.json({ error: "Worker route is not configured" }, { status: 500 });
@@ -327,70 +277,6 @@ export default {
       return handleChat(body, env);
     }
 
-    if (url.pathname === "/translate") {
-      return handleTranslate(body, env);
-    }
-
-    const texts = inputTexts(body);
-
-    if (!texts) {
-      return Response.json(
-        { error: "`input` must be a string or a non-empty array of strings" },
-        { status: 400 },
-      );
-    }
-
-    if (texts.length > MAX_INPUTS_PER_REQUEST) {
-      return Response.json(
-        { error: `\`input\` must contain at most ${MAX_INPUTS_PER_REQUEST} strings` },
-        { status: 413 },
-      );
-    }
-
-    const cappedTexts = texts.map(capText);
-    const data: Array<{ embedding: number[]; index: number }> = [];
-
-    async function embedBatch(start: number): Promise<void> {
-      const batch = cappedTexts.slice(start, start + MAX_INPUTS_PER_BATCH);
-
-      const result = (await env.AI.run(EMBEDDING_MODEL, {
-        text: batch,
-      })) as { data?: unknown };
-      const embeddings = result.data;
-
-      // A short or malformed result would shift every later vector onto the wrong input.
-      if (
-        !Array.isArray(embeddings) ||
-        embeddings.length !== batch.length ||
-        !embeddings.every((embedding) => Array.isArray(embedding))
-      ) {
-        throw new Error(
-          `Workers AI returned ${Array.isArray(embeddings) ? embeddings.length : "no"} embeddings for ${batch.length} inputs`,
-        );
-      }
-
-      embeddings.forEach((embedding: number[], index) => {
-        data[start + index] = {
-          embedding,
-          index: start + index,
-        };
-      });
-    }
-
-    try {
-      const batchStarts = Array.from(
-        { length: Math.ceil(cappedTexts.length / MAX_INPUTS_PER_BATCH) },
-        (_, batchIndex) => batchIndex * MAX_INPUTS_PER_BATCH,
-      );
-      for (let next = 0; next < batchStarts.length; next += MAX_CONCURRENT_BATCHES) {
-        await Promise.all(batchStarts.slice(next, next + MAX_CONCURRENT_BATCHES).map(embedBatch));
-      }
-    } catch (error) {
-      console.error("Workers AI embedding failed", error);
-      return Response.json({ error: "Embedding provider failed" }, { status: 502 });
-    }
-
-    // One `{ embedding, index }` entry per input, the shape @kyomi/ingest's client reads.
-    return Response.json({ data });
+    return handleTranslate(body, env);
   },
 };

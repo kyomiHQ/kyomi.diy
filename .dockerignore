@@ -36,3 +36,7 @@ packages/catalog/processing/exports
 packages/catalog/**/*.duckdb
 packages/catalog/**/*.parquet
 packages/catalog/**/*.db
+
+# Host compilation caches are not image inputs.
+packages/ingest/encoders/target
+packages/ingest/encoders/dist

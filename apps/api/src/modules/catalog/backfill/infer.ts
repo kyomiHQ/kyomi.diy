@@ -14,8 +14,7 @@ import {
 } from "@kyomi/ingest";
 import { AppLogger } from "@adapters/logger/service";
 import { embeddingClassifierConfig } from "@config/embeddings";
-import { AppConfig } from "@config/env/service";
-import { failureMessage, EmbeddingsIncomplete, EmbeddingsNotConfigured } from "../errors";
+import { failureMessage, EmbeddingsIncomplete } from "../errors";
 import { Embeddings } from "../embeddings";
 import type {
   BackfillArgs,
@@ -41,13 +40,7 @@ export const resolveBackfillClassifier = Effect.fn("catalog.backfill.classifier"
   }
   // Same provider selection as the worker, so backfilled rows carry the model id that refresh and
   // extraction write and replace.
-  const embeddingConfig = embeddingClassifierConfig(undefined, yield* AppConfig);
-  if (!embeddingConfig) {
-    return yield* new EmbeddingsNotConfigured({
-      message:
-        "CLOUDFLARE_EMBEDDINGS_URL and CLOUDFLARE_EMBEDDINGS_TOKEN are required when --classifier embedding is used",
-    });
-  }
+  const embeddingConfig = embeddingClassifierConfig();
   return {
     method: "embedding",
     embeddingConfig,

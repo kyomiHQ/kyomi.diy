@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import worker from "../../../../apps/ai-gateway/src/index";
 
-const TOKEN = "test-embeddings-token";
-const CHAT_URL = "https://embeddings.test/chat";
+const TOKEN = "test-chat-token";
+const CHAT_URL = "https://ai-gateway.test/chat";
 const MODEL = "@cf/openai/gpt-oss-120b";
 
 /** Workers AI stand-in that records each call and answers with a fixed result or error. */
@@ -51,7 +51,7 @@ describe("chat route auth and validation", () => {
     for (const authorization of [null, "Bearer wrong"]) {
       const response = await worker.fetch(chatRequest(validBody, authorization), {
         AI: ai,
-        EMBEDDINGS_TOKEN: TOKEN,
+        CHAT_TOKEN: TOKEN,
       });
       expect(response.status).toBe(401);
     }
@@ -66,7 +66,7 @@ describe("chat route auth and validation", () => {
   //   no_claim=green does not prove the Worker rejects every body a real Workers AI model would refuse.
   test("rejects unlisted models, invalid fields and oversized input without calling Workers AI", async () => {
     const ai = fakeAi({ response: "x" });
-    const env = { AI: ai, EMBEDDINGS_TOKEN: TOKEN };
+    const env = { AI: ai, CHAT_TOKEN: TOKEN };
 
     for (const body of [
       { ...validBody, model: "@cf/meta/llama-3.1-8b-instruct" },
@@ -102,7 +102,7 @@ describe("chat route responses", () => {
 
     const response = await worker.fetch(chatRequest({ ...validBody, reasoning_effort: "low" }), {
       AI: ai,
-      EMBEDDINGS_TOKEN: TOKEN,
+      CHAT_TOKEN: TOKEN,
     });
 
     expect(response.status).toBe(200);
@@ -150,7 +150,7 @@ describe("chat route responses", () => {
         stream: true,
         temperature: 2,
       }),
-      { AI: ai, EMBEDDINGS_TOKEN: TOKEN },
+      { AI: ai, CHAT_TOKEN: TOKEN },
     );
 
     expect(response.status).toBe(200);
@@ -177,7 +177,7 @@ describe("chat route responses", () => {
     const ai = fakeAi({
       choices: [{ message: { content: "<p>Hallo</p>" }, finish_reason: "stop" }],
     });
-    const env = { AI: ai, EMBEDDINGS_TOKEN: TOKEN };
+    const env = { AI: ai, CHAT_TOKEN: TOKEN };
     const messages = [
       { role: "system", content: "x".repeat(200_000) },
       { role: "user", content: "y".repeat(200_000) },
@@ -198,7 +198,7 @@ describe("chat route responses", () => {
   });
 
   test("reads Responses API output items and legacy response strings", async () => {
-    const env = (result: unknown) => ({ AI: fakeAi(result), EMBEDDINGS_TOKEN: TOKEN });
+    const env = (result: unknown) => ({ AI: fakeAi(result), CHAT_TOKEN: TOKEN });
 
     const responses = await worker.fetch(
       chatRequest(validBody),
@@ -226,7 +226,7 @@ describe("chat route responses", () => {
       AI: fakeAi(() => {
         throw new Error("5016: model requires a paid plan");
       }),
-      EMBEDDINGS_TOKEN: TOKEN,
+      CHAT_TOKEN: TOKEN,
     });
     expect(failing.status).toBe(502);
     expect(await failing.json()).toEqual({
@@ -236,7 +236,7 @@ describe("chat route responses", () => {
 
     const empty = await worker.fetch(chatRequest(validBody), {
       AI: fakeAi({ usage: {} }),
-      EMBEDDINGS_TOKEN: TOKEN,
+      CHAT_TOKEN: TOKEN,
     });
     expect(empty.status).toBe(502);
   });
@@ -249,7 +249,7 @@ describe("chat route responses", () => {
   //   no_claim=green does not prove the Workers AI usage fields match what the real models send.
   test("reports absent usage as null and keeps a reported zero", async () => {
     const answer = { message: { content: "<p>Hallo</p>" }, finish_reason: "stop" };
-    const env = (result: unknown) => ({ AI: fakeAi(result), EMBEDDINGS_TOKEN: TOKEN });
+    const env = (result: unknown) => ({ AI: fakeAi(result), CHAT_TOKEN: TOKEN });
 
     const withoutUsage = await worker.fetch(chatRequest(validBody), env({ choices: [answer] }));
     expect(withoutUsage.status).toBe(200);
@@ -295,7 +295,7 @@ describe("chat route responses", () => {
         status: "incomplete",
         usage: { input_tokens: 40, output_tokens: 1024 },
       }),
-      EMBEDDINGS_TOKEN: TOKEN,
+      CHAT_TOKEN: TOKEN,
     });
 
     expect(response.status).toBe(502);
@@ -314,7 +314,7 @@ describe("chat route responses", () => {
         choices: [{ message: { content: "" }, finish_reason: "length" }],
         usage: { prompt_tokens: 40, completion_tokens: 1024 },
       }),
-      EMBEDDINGS_TOKEN: TOKEN,
+      CHAT_TOKEN: TOKEN,
     });
 
     expect(response.status).toBe(502);

@@ -8,8 +8,8 @@ type VectorInputs = Parameters<typeof embedItemVectors>[0];
 type Config = Parameters<typeof classifyFeedEmbedding>[1];
 
 /**
- * The embeddings Worker as a service. `@kyomi/ingest` calls it with the global `fetch`, so this is
- * the seam: operator scripts depend on `Embeddings`, tests provide a fake Layer, and every
+ * The local embeddings classifier as a service. Operator scripts depend on `Embeddings`,
+ * tests provide a fake Layer, and every
  * failure arrives as a typed `UpstreamError`.
  */
 export type EmbeddingsShape = {

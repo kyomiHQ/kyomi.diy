@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
+import { activeEmbeddingModelId } from "@config/embeddings";
 import {
   buildCategoryCoverageReport,
   parseCategoryCoverageArgs,
+  runCategoryCoverageReport,
   summarizeCategoryCoverageReport,
 } from "../../../../../apps/api/src/app/boot/report";
 
@@ -53,6 +57,23 @@ describe("category coverage report script", () => {
         "keyword fallback 4.00% (4 items); " +
         "explicit labels present on 12 items; unclassified 0 items.",
     );
+  });
+
+  test("coverage counts only the active embedding model for both items and feed fallbacks", async () => {
+    let query: ReturnType<PgDialect["sqlToQuery"]> | undefined;
+    const database = {
+      async execute(statement: SQL) {
+        query = new PgDialect().sqlToQuery(statement);
+        return { rows: [] };
+      },
+    } as unknown as Parameters<typeof runCategoryCoverageReport>[1];
+    await runCategoryCoverageReport({ days: 7, feedId: null }, database);
+    expect(query).toBeDefined();
+    for (const table of ["feed_item_category_assignments", "feed_category_assignments"]) {
+      const match = query!.sql.match(new RegExp(`"${table}"\\."model_id" = \\$(\\d+)`));
+      expect(match).not.toBeNull();
+      expect(query!.params[Number(match![1]) - 1]).toBe(activeEmbeddingModelId());
+    }
   });
 
   test("handles an empty recent window", () => {
