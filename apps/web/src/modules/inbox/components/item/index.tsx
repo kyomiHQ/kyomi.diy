@@ -168,10 +168,17 @@ export const Item = memo(function Item({
           "flex w-full min-w-0 items-center justify-end gap-3 p-0",
           ITEM_GUTTER_CLASS,
           sectionClassNames.footer,
+          // Keep the row's spacing. The footer's 12px / 16px block inset leaves 8px / 4px corners.
+          isCompact
+            ? "[--inbox-footer-corner:var(--corner-lg)]"
+            : "[--inbox-footer-corner:var(--corner-sm)]",
         )}
       >
         <ItemMeta item={item} metaFontSizePx={metaFontSizePx} />
-        <ItemInlineToolbar item={item} />
+        <ItemInlineToolbar
+          className="[&_button]:rounded-(--inbox-footer-corner) [&_button]:[corner-shape:squircle]"
+          item={item}
+        />
       </CardFooter>
     </Card>
   );
@@ -228,7 +235,7 @@ function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: n
     <div className="me-auto flex min-w-0 items-center gap-1.5">
       {item.isSaved ? (
         <span
-          className="min-w-0 shrink-0 rounded-full bg-mizu/8 px-2 py-0.5 font-medium text-mizu-foreground dark:bg-mizu/16"
+          className="min-w-0 shrink-0 rounded-(--inbox-footer-corner) bg-mizu/8 px-2 py-0.5 font-medium text-mizu-foreground [corner-shape:squircle] dark:bg-mizu/16"
           style={{ fontSize: `${metaFontSizePx}px` }}
         >
           Saved
@@ -241,7 +248,7 @@ function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: n
               ? continueLabel
               : `Continue reading, ${continueLabel}`
           }
-          className="h-auto min-w-0 shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground/85 sm:h-auto"
+          className="h-auto min-w-0 shrink-0 rounded-(--inbox-footer-corner) bg-muted px-2 py-0.5 text-muted-foreground/85 [corner-shape:squircle] sm:h-auto"
           size="default"
           style={{ fontSize: `${metaFontSizePx}px` }}
           variant="secondary"
@@ -249,7 +256,11 @@ function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: n
           {continueLabel}
         </Badge>
       ) : null}
-      <Categories categories={item.categories} fontSizePx={metaFontSizePx} />
+      <Categories
+        categories={item.categories}
+        className="*:rounded-(--inbox-footer-corner) *:[corner-shape:squircle]"
+        fontSizePx={metaFontSizePx}
+      />
     </div>
   );
 }
