@@ -42,16 +42,31 @@ export function useTranslation(
     queryFn: ({ signal }) => translate(itemId, mode, language, signal),
   });
   async function toggle() {
-    if (query.isFetching) return;
-    if (query.data) {
+    if (client.getQueryState(key)?.fetchStatus !== "idle") return;
+    if (client.getQueryData(key)) {
       client.setQueryData(key, null);
       return;
     }
-    const result = await query.refetch({ cancelRefetch: false });
-    if (result.error) toastManager.add({ title: result.error.message, type: "error" });
+
+    await toastManager
+      .promise(query.refetch({ cancelRefetch: false, throwOnError: true }), {
+        loading: {
+          title: "Translating your article",
+          type: "loading",
+          timeout: 0,
+          data: { filledLoading: true },
+        },
+        success: { title: "Article translated", type: "success", timeout: 2400 },
+        error: (error) => ({
+          title: error instanceof Error ? error.message : "Translation could not be completed.",
+          type: "error",
+        }),
+      })
+      .catch(() => undefined);
   }
   return {
     result: query.data,
+    isTranslating: query.isFetching,
     label: query.isFetching
       ? "Translating article…"
       : query.data

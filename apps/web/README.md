@@ -24,7 +24,7 @@ sidebar, settings, auth, onboarding -> inbox -> reader -> articles -> feeds, fol
 
 ## onboarding
 
-The signed-in app guard sends pending accounts to `/onboarding` and preserves their validated inbox destination. The separate route loads the API draft for the current session and saves each step through a module-owned server function. The final step runs its subscription save and inbox preload in a Glimm scope shared by both routes. The right-to-left sweep reveals the destination once the subscriptions and first inbox page are ready. Glimm uses HTML-in-Canvas where available and handles reduced motion and browser fallbacks.
+The signed-in app guard sends pending accounts to `/onboarding` and preserves their validated inbox destination. The separate route loads the API draft for the current session and saves each step through a module-owned server function. The final step saves subscriptions and preloads the first inbox page before arming the Glimm scope shared by both routes. An upward sweep aligned with Finish setup reveals the inbox. Glimm uses HTML-in-Canvas where available and supports navigation with reduced motion or without WebGL.
 
 ## commands
 

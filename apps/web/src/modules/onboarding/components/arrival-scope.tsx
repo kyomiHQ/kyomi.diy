@@ -1,49 +1,71 @@
 import { useRouterState } from "@tanstack/react-router";
 import { accentChain } from "glimm";
-import { GlimmScope, type GlimmScopeHandle } from "glimm/react";
+import {
+  GlimmScope,
+  supportsHtmlInCanvas,
+  usePageEffect,
+  type GlimmScopeHandle,
+} from "glimm/react";
 import { useRef, useState, type PropsWithChildren } from "react";
+import { flushSync } from "react-dom";
 import { InboxArrivalTransition } from "../lib/arrival-transition";
 
 const palette = accentChain(["#7775E8", "#AE73DC", "#E5A1A9"]);
+
+function waitForCaptureFrame() {
+  return new Promise<void>((resolve) => {
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(finish);
+    });
+    function finish() {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("visibilitychange", finish);
+      resolve();
+    }
+    document.addEventListener("visibilitychange", finish);
+  });
+}
 
 export function ArrivalScope({ children }: PropsWithChildren) {
   const onboarding = useRouterState({
     select: (state) => state.location.pathname === "/onboarding",
   });
   const scope = useRef<GlimmScopeHandle>(null);
-  const [playing, setPlaying] = useState(false);
-  const [captureReady, setCaptureReady] = useState(false);
-  const active = onboarding || playing;
+  const [pageEffectEnabled] = usePageEffect();
+  const [phase, setPhase] = useState<"idle" | "sweep" | "capture">("idle");
+  const active = onboarding || phase !== "idle";
 
-  function play<T>(
-    work: () => Promise<T>,
-    change: (result: T) => Promise<void>,
-    at?: [number, number],
-  ) {
+  async function play(change: () => Promise<void>, at?: [number, number]) {
     const transition = scope.current;
-    if (!transition) return work().then(change);
+    if (!transition || document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return change();
+    }
+
+    const capture = pageEffectEnabled && supportsHtmlInCanvas();
+    flushSync(() => setPhase(capture ? "capture" : "sweep"));
+    // Glimm enables its surface in effects, then Chrome paints the outgoing DOM into it.
+    if (capture) await waitForCaptureFrame();
 
     return new Promise<void>((resolve, reject) => {
       transition.play({
-        work,
         at,
-        change: (result) => change(result).then(resolve, reject),
-        onFail: reject,
-        onLeave: () => setPlaying(false),
+        change: () => Promise.resolve().then(change).then(resolve, reject),
+        onLeave: () => setPhase("idle"),
       });
-      setPlaying(true);
     });
   }
 
   return (
-    <InboxArrivalTransition.Provider value={{ play, setCaptureReady }}>
+    <InboxArrivalTransition.Provider value={play}>
       <GlimmScope
         ref={scope}
         style={active ? { height: "100dvh" } : { overflow: "visible" }}
-        pageEffect={active && (captureReady || playing)}
-        direction="rtl"
+        pageEffect={phase === "capture"}
+        direction="btt"
+        curve={0.1}
+        span={0.8}
         palette={palette}
-        sweepMs={1100}
+        sweepMs={850}
         brightness={0.85}
         peakAlpha={0.85}
       >

@@ -1,26 +1,25 @@
-import { starterBundles } from "@kyomi/ingest/ingestion/starter-bundles";
+import { recommendStarterBundles } from "@kyomi/ingest/ingestion/starter-bundles";
 import { Item } from "@kyomi/ui/components/item";
-import { type CSSProperties, useEffect, useState } from "react";
+import { usePretext, usePretextLayout } from "@kyomi/ui/hooks/use-pretext";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { FeedFavicon } from "@modules/feeds/components/favicon";
 import "./bundle-choices.css";
+
+// Canvas font strings for pretext; keep in step with the text-sm classes below.
+const titleFont = '500 14px "Inter Variable"';
+const sourceFont = '400 14px "Inter Variable"';
+const lineHeight = 16;
 
 const triggerClassName =
   "bundle-trigger flex w-full items-center justify-between gap-3 ps-3 pe-2 text-start text-sm leading-4 font-medium text-foreground";
 
-const bundleDescriptions = {
-  technology: "Software & digital rights",
-  science: "From particles to planets",
-  design: "Design for real people",
-  climate: "Climate science & policy",
-  culture: "Books, ideas & media",
-  business: "How tech businesses grow",
-} satisfies Record<(typeof starterBundles)[number]["id"], string>;
-
 export function BundleChoices({
+  interests,
   selected,
   onSelect,
   errorId,
 }: {
+  interests: string[];
   selected: string[];
   onSelect?: (bundleId: string) => void;
   errorId?: string;
@@ -29,6 +28,7 @@ export function BundleChoices({
   const [focused, setFocused] = useState<string | null>(null);
   const previewId = hovered ?? focused;
   const selection = new Set(selected);
+  const bundles = useMemo(() => recommendStarterBundles(interests), [interests]);
 
   useEffect(() => {
     if (!previewId) return;
@@ -54,7 +54,7 @@ export function BundleChoices({
       onPointerLeave={() => setHovered(null)}
     >
       <legend className="sr-only">Starter feed bundles</legend>
-      {starterBundles.map((bundle) => {
+      {bundles.map((bundle) => {
         if (!onSelect) {
           return (
             <div key={bundle.id} className={triggerClassName}>
@@ -90,12 +90,12 @@ export function BundleChoices({
               onBlur={() => setFocused(null)}
               className={`${triggerClassName} cursor-pointer outline-none`}
             >
-              <span>{bundle.title}</span>
+              <BundleTitle title={bundle.title} />
               <span
                 id={descriptionId}
-                className="bundle-summary w-28 shrink-0 text-end text-xs text-balance text-foreground/80 sm:w-40"
+                className="bundle-summary text-end text-xs text-foreground/80"
               >
-                {bundleDescriptions[bundle.id]}
+                {bundle.description}
               </span>
               <span id={sourcesId} className="sr-only">
                 {bundle.feeds.map((feed) => feed.title).join(", ")}
@@ -117,9 +117,7 @@ export function BundleChoices({
                   }
                   className="bundle-source flex h-(--source-height) items-center justify-between gap-3 ps-3 pe-2"
                 >
-                  <span className="bundle-source-name line-clamp-2 text-start text-sm leading-4">
-                    {feed.title}
-                  </span>
+                  <SourceName title={feed.title} />
                   <FeedFavicon
                     feedUrl={feed.url}
                     siteUrl={feed.siteUrl}
@@ -136,5 +134,40 @@ export function BundleChoices({
         );
       })}
     </fieldset>
+  );
+}
+
+function BundleTitle({ title }: { title: string }) {
+  const { containerRef, fittedLabel } = usePretext({
+    label: title,
+    font: titleFont,
+    lineHeight,
+  });
+
+  return (
+    <span ref={containerRef} className="min-w-0 flex-1 truncate">
+      {fittedLabel}
+    </span>
+  );
+}
+
+function SourceName({ title }: { title: string }) {
+  const { ref, fittedWidth } = usePretextLayout({
+    text: title,
+    font: sourceFont,
+    lineHeight,
+    maxLines: 2,
+  });
+
+  return (
+    <div className="min-w-0 flex-1">
+      <p
+        ref={ref}
+        style={{ maxWidth: fittedWidth ? `${fittedWidth}px` : undefined }}
+        className="bundle-source-name line-clamp-2 text-start text-sm leading-4"
+      >
+        {title}
+      </p>
+    </div>
   );
 }

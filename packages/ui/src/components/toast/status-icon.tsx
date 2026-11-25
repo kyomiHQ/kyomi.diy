@@ -5,6 +5,7 @@ import {
   CheckCircle2FilledIcon,
   CircleXFilledIcon,
   ExclamationCircleFilledIcon,
+  LoaderCircleFilledIcon,
   LoaderCircleIcon,
   TriangleAlertIcon,
 } from "blode-icons-react";
@@ -89,7 +90,11 @@ export function ToastStatusIcon({
 }): React.ReactElement | null {
   const prefersReducedMotion = useReducedMotion();
   const progress = getToastProgress(toast);
-  const Icon = toast.type ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS] : null;
+  const defaultIcon = toast.type ? TOAST_ICONS[toast.type as keyof typeof TOAST_ICONS] : null;
+  const Icon =
+    toast.type === "loading" && toast.data?.filledLoading === true
+      ? LoaderCircleFilledIcon
+      : defaultIcon;
   if (!progress && !Icon) {
     return null;
   }

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
   QueryClient,
@@ -7,6 +7,7 @@ import {
 } from "../../../../../../../apps/web/node_modules/@tanstack/react-query";
 import { expect, test, vi } from "vitest";
 import { useTranslation } from "@modules/reader/hooks/use-translation";
+import { ToastProvider, toastManager } from "@kyomi/ui/components/toast";
 
 const { requestTranslation, getTranslation } = vi.hoisted(() => ({
   requestTranslation: vi.fn(),
@@ -23,8 +24,15 @@ test("the header translates on demand and the separately mounted reader can rest
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
   const useReader = () => useTranslation("article", "original", "fr-CA", null);
-  const header = renderHook(useReader, { wrapper });
+  const header = renderHook(useReader, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>
+        <ToastProvider>{children}</ToastProvider>
+      </QueryClientProvider>
+    ),
+  });
   const body = renderHook(useReader, { wrapper });
+  const toast = vi.spyOn(toastManager, "promise");
   requestTranslation.mockResolvedValue({ id: "translation", status: "queued" });
   getTranslation.mockResolvedValue({
     id: "translation",
@@ -33,12 +41,27 @@ test("the header translates on demand and the separately mounted reader can rest
     target_language: "fr",
   });
   expect(requestTranslation).not.toHaveBeenCalled();
+  let pending!: Promise<void>;
   await act(async () => {
-    await header.result.current.toggle();
+    pending = header.result.current.toggle();
+    await body.result.current.toggle();
   });
+  await waitFor(() => expect(body.result.current.isTranslating).toBe(true));
+  expect(screen.getByText("Translating your article")).toBeTruthy();
+  expect(body.result.current.result).toBeUndefined();
+  expect(toast).toHaveBeenCalledOnce();
+  expect(toast).toHaveBeenCalledWith(
+    expect.any(Promise),
+    expect.objectContaining({
+      loading: expect.objectContaining({ title: "Translating your article" }),
+      success: expect.objectContaining({ title: "Article translated" }),
+    }),
+  );
+  await act(async () => pending);
   await waitFor(() =>
     expect(body.result.current.result?.translated_content).toBe("Texte français"),
   );
+  expect(screen.getByText("Article translated")).toBeTruthy();
   expect(getTranslation).toHaveBeenCalledTimes(1);
   expect(requestTranslation).toHaveBeenCalledTimes(1);
   expect(header.result.current.label).toBe("Show original article");
@@ -46,5 +69,7 @@ test("the header translates on demand and the separately mounted reader can rest
     await body.result.current.toggle();
   });
   await waitFor(() => expect(header.result.current.result).toBeNull());
+  expect(toast).toHaveBeenCalledOnce();
+  toast.mockRestore();
   client.clear();
 });

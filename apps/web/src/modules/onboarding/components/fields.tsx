@@ -10,6 +10,7 @@ export function OnboardingField({
   step,
   categories,
   languages,
+  interests,
   value,
   onChange,
   errorId,
@@ -17,6 +18,7 @@ export function OnboardingField({
   step: OnboardingStep;
   categories: string[];
   languages: OnboardingLanguageOption[];
+  interests: string[];
   value: string | string[];
   onChange: (value: string | string[]) => void;
   errorId?: string;
@@ -54,7 +56,14 @@ export function OnboardingField({
         />
       );
     case "bundleIds":
-      return <BundleChoices selected={selected} onSelect={toggle} errorId={errorId} />;
+      return (
+        <BundleChoices
+          interests={interests}
+          selected={selected}
+          onSelect={toggle}
+          errorId={errorId}
+        />
+      );
   }
 }
 

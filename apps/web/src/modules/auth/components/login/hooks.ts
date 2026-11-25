@@ -80,10 +80,13 @@ export function useOtpForm(email: string, returnTo: string) {
 
         await Promise.all([router.invalidate(), prefetchInboxFlow(router, queryClient)]);
         await router.navigate({ href: returnTo });
-        toastManager.add({
-          title: "Logged in",
-          type: "success",
-        });
+        // The onboarding guard redirects new accounts; its first step is confirmation enough.
+        if (!router.state.location.pathname.startsWith("/onboarding")) {
+          toastManager.add({
+            title: "Logged in",
+            type: "success",
+          });
+        }
       } catch (error) {
         logClientError("auth.verify_otp", error);
         toastManager.add({

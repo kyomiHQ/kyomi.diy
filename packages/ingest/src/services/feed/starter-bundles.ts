@@ -1,8 +1,13 @@
-// Shared feed catalog for onboarding and its browser preview.
-export const starterBundles = [
+import { interestBundles, type StarterBundle } from "./interest-bundles";
+
+export const starterBundleLimit = 6;
+
+const coreBundles = [
   {
     id: "technology",
     title: "Technology",
+    description: "Software & digital rights",
+    interests: ["Technology", "Software Engineering", "Security & Privacy"],
     feeds: [
       {
         title: "Ars Technica",
@@ -29,6 +34,8 @@ export const starterBundles = [
   {
     id: "science",
     title: "Science",
+    description: "Physics, space & life",
+    interests: ["Science & Research", "Climate & Environment", "Health & Medicine"],
     feeds: [
       {
         title: "Quanta Magazine",
@@ -55,6 +62,8 @@ export const starterBundles = [
   {
     id: "design",
     title: "Design",
+    description: "Web design & usability",
+    interests: ["Design & UX", "Technology", "Culture & Media"],
     feeds: [
       {
         title: "A List Apart",
@@ -81,6 +90,8 @@ export const starterBundles = [
   {
     id: "climate",
     title: "Climate & environment",
+    description: "Climate policy",
+    interests: ["Climate & Environment", "Science & Research", "Politics & Policy"],
     feeds: [
       {
         title: "Carbon Brief",
@@ -107,6 +118,8 @@ export const starterBundles = [
   {
     id: "culture",
     title: "Arts & culture",
+    description: "Books, ideas & media",
+    interests: ["Culture & Media", "Personal & Essays"],
     feeds: [
       {
         title: "Literary Hub",
@@ -133,6 +146,8 @@ export const starterBundles = [
   {
     id: "business",
     title: "Tech & business",
+    description: "Startups & platforms",
+    interests: ["Business & Startups", "Technology", "Finance & Markets"],
     feeds: [
       {
         title: "Stratechery",
@@ -156,4 +171,29 @@ export const starterBundles = [
       },
     ],
   },
-] as const;
+] as const satisfies readonly StarterBundle[];
+
+// Shared feed catalog for onboarding and its browser preview.
+export const starterBundles = [...coreBundles, ...interestBundles] as const;
+
+export type StarterBundleId = (typeof starterBundles)[number]["id"];
+
+/**
+ * Picks the bundles shown in onboarding: one per chosen interest first, in the order the
+ * reader chose them, then the closest neighbours, then catalog order to fill the list.
+ */
+export function recommendStarterBundles(interests: readonly string[], limit = starterBundleLimit) {
+  function score(bundle: (typeof starterBundles)[number]) {
+    return interests.reduce((total, interest, rank) => {
+      const position = (bundle.interests as readonly string[]).indexOf(interest);
+      if (position === 0) return total + 100 - rank;
+      return position > 0 ? total + 10 - position : total;
+    }, 0);
+  }
+
+  return starterBundles
+    .map((bundle, index) => ({ bundle, index, score: score(bundle) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, limit)
+    .map(({ bundle }) => bundle);
+}

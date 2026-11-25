@@ -23,4 +23,7 @@ export const queryKeys = {
   sidebar: {
     inboxSummary: ["sidebar", "inbox-summary"],
   },
+  preferences: {
+    reader: (userId?: string) => ["me", "preferences", "reader", userId ?? "anonymous"] as const,
+  },
 } as const;

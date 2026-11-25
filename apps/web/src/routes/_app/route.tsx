@@ -7,10 +7,11 @@ import {
 import { AppShell } from "@/app/shell";
 import { RouteErrorPage } from "@/app/error";
 import { DefaultNotFoundPage } from "@/app/not-found";
-import { useHydrated } from "@hooks/use-hydrated";
-import { PreferredLocale } from "@lib/locale";
+import { PreferredLocale, resolvePreferredLocale } from "@lib/locale";
+import { queryKeys } from "@lib/query/keys";
 import { INBOX_RECOVERY_ACTION } from "@lib/recovery";
 import { useReaderPreferences } from "@modules/reader/hooks/use-preferences";
+import { getReaderPreferences } from "@modules/reader/lib/preferences";
 import { buildAuthEntryHref } from "@modules/auth/redirect";
 import { getOnboardingStatus } from "@modules/onboarding/lib/api";
 import { getErrorStatus } from "@lib/status";
@@ -27,6 +28,16 @@ export const Route = createFileRoute("/_app")({
     });
     requireCompletedOnboarding(status, location.href);
   },
+  loader: async ({ context }) => {
+    const userId = context.authState.session?.user.id;
+    if (!userId) return;
+    await context.queryClient
+      .ensureQueryData({
+        queryKey: queryKeys.preferences.reader(userId),
+        queryFn: getReaderPreferences,
+      })
+      .catch(() => undefined);
+  },
   component: AppLayout,
   errorComponent: AppRouteErrorPage,
   notFoundComponent: DefaultNotFoundPage,
@@ -39,9 +50,7 @@ function AppRouteErrorPage(props: ErrorComponentProps) {
 
 function AppLayout() {
   const { preferences } = useReaderPreferences();
-  const hydrated = useHydrated();
-  const preferredLanguage = preferences.language === "ns" ? "nso" : (preferences.language ?? "en");
-  const [locale = "en"] = hydrated ? Intl.DateTimeFormat.supportedLocalesOf(preferredLanguage) : [];
+  const locale = resolvePreferredLocale(preferences.language);
 
   return (
     <PreferredLocale value={locale}>
