@@ -16,7 +16,7 @@ export function AccountLayout({
   return (
     <main className="relative grid min-h-dvh place-items-center px-6 py-24">
       <AccountHeader onBack={onBack} />
-      <section className="w-full max-w-sm space-y-7">
+      <section className="w-full min-w-0 max-w-sm space-y-7">
         {children}
         {!onBack && (
           <p className="text-sm text-muted-foreground">

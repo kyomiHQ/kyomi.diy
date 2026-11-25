@@ -6,7 +6,7 @@ import { OTPField, OTPFieldInput, OTPFieldSeparator } from "@kyomi/ui/components
 import { getFieldErrorMessage } from "@modules/auth/schema";
 import { useResendCode, useOtpForm } from "./hooks";
 
-const otpInputClassName = "aspect-square h-auto min-w-0 flex-1 sm:h-auto";
+const otpInputClassName = "h-(--control-xl) min-w-0 flex-1 sm:h-(--control-xl)";
 
 export function OtpStep({ email, returnTo }: { email: string; returnTo: string }) {
   const otpForm = useOtpForm(email, returnTo);
@@ -30,7 +30,7 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
             const errorMessage = getFieldErrorMessage(field.state.meta.errors, canShow);
 
             return (
-              <Field className="items-center">
+              <Field className="items-center" invalid={Boolean(errorMessage)}>
                 <FieldLabel className="sr-only">Verification code</FieldLabel>
                 <OTPField
                   aria-label="Verification code"
@@ -64,17 +64,16 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
           )}
         </otpForm.Subscribe>
 
-        <div className="flex justify-center">
-          <Button
-            variant="ghost"
-            size="xl"
-            type="button"
-            onClick={() => void handleResendCode()}
-            disabled={isResending}
-          >
-            {isResending ? "Resending…" : "Resend code"}
-          </Button>
-        </div>
+        <Button
+          className="w-full"
+          variant="ghost"
+          size="xl"
+          type="button"
+          onClick={() => void handleResendCode()}
+          disabled={isResending}
+        >
+          {isResending ? "Resending…" : "Resend code"}
+        </Button>
       </Form>
     </>
   );
