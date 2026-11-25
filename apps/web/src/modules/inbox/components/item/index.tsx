@@ -73,6 +73,11 @@ export const Item = memo(function Item({
     ITEM_HOVER_RADIUS_PX,
     ITEM_HOVER_CORNER_SMOOTHING,
   );
+  // Subtract the existing footer bottom padding (pb-3 / pb-4) from the row radius.
+  const footerCorners = {
+    cornerRadius: ITEM_HOVER_RADIUS_PX - (isCompact ? 12 : 16),
+    cornerSmoothing: ITEM_HOVER_CORNER_SMOOTHING,
+  };
   const selectItem = () => {
     onSelect(item);
   };
@@ -168,17 +173,13 @@ export const Item = memo(function Item({
           "flex w-full min-w-0 items-center justify-end gap-3 p-0",
           ITEM_GUTTER_CLASS,
           sectionClassNames.footer,
-          // Keep the row's spacing. The footer's 12px / 16px block inset leaves 8px / 4px corners.
           isCompact
             ? "[--inbox-footer-corner:var(--corner-lg)]"
             : "[--inbox-footer-corner:var(--corner-sm)]",
         )}
       >
-        <ItemMeta item={item} metaFontSizePx={metaFontSizePx} />
-        <ItemInlineToolbar
-          className="[&_button]:rounded-(--inbox-footer-corner) [&_button]:[corner-shape:squircle]"
-          item={item}
-        />
+        <ItemMeta item={item} metaFontSizePx={metaFontSizePx} corners={footerCorners} />
+        <ItemInlineToolbar item={item} corners={footerCorners} />
       </CardFooter>
     </Card>
   );
@@ -226,7 +227,15 @@ function ItemSeparators({
   );
 }
 
-function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: number }) {
+function ItemMeta({
+  item,
+  metaFontSizePx,
+  corners,
+}: {
+  item: InboxItem;
+  metaFontSizePx: number;
+  corners: { cornerRadius: number; cornerSmoothing: number };
+}) {
   const continueLabel = getContinueLabel(item);
   if (!item.isSaved && !continueLabel && item.categories.length === 0) {
     return null;
@@ -256,11 +265,7 @@ function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: n
           {continueLabel}
         </Badge>
       ) : null}
-      <Categories
-        categories={item.categories}
-        className="*:rounded-(--inbox-footer-corner) *:[corner-shape:squircle]"
-        fontSizePx={metaFontSizePx}
-      />
+      <Categories categories={item.categories} corners={corners} fontSizePx={metaFontSizePx} />
     </div>
   );
 }
