@@ -2,11 +2,25 @@ import { Button } from "@kyomi/ui/components/button";
 import { AccountHeading } from "./layout";
 import { Form } from "@kyomi/ui/components/form";
 import { Field, FieldError, FieldLabel } from "@kyomi/ui/components/field";
-import { OTPField, OTPFieldInput, OTPFieldSeparator } from "@kyomi/ui/components/otp-field";
+import { OTPField, OTPFieldPrimitive, OTPFieldSeparator } from "@kyomi/ui/components/otp-field";
 import { getFieldErrorMessage } from "@modules/auth/schema";
 import { useResendCode, useOtpForm } from "./hooks";
 
-const otpInputClassName = "h-(--control-xl) min-w-0 flex-1 sm:h-(--control-xl)";
+function OtpDigits({ start }: { start: 1 | 4 }) {
+  return (
+    <div className="grid h-(--control-xl) min-w-0 flex-1 grid-cols-3 rounded-lg border border-input bg-muted/50 has-aria-invalid:border-destructive/64">
+      {[start, start + 1, start + 2].map((digit) => (
+        <OTPFieldPrimitive.Input
+          key={digit}
+          autoFocus={digit === 1}
+          aria-label={digit === 1 ? undefined : `Character ${digit} of 6`}
+          data-slot="otp-field-input"
+          className="w-full min-w-0 border-e border-border bg-transparent text-center font-mono text-base text-foreground outline-none transition-[background-color,box-shadow] duration-(--duration-control) first:rounded-s-[calc(var(--radius-lg)-var(--stroke-width))] last:rounded-e-[calc(var(--radius-lg)-var(--stroke-width))] last:border-e-0 focus-visible:bg-background focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring focus-visible:ring-inset focus-visible:aria-invalid:ring-destructive"
+        />
+      ))}
+    </div>
+  );
+}
 
 export function OtpStep({ email, returnTo }: { email: string; returnTo: string }) {
   const otpForm = useOtpForm(email, returnTo);
@@ -34,19 +48,15 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
                 <FieldLabel className="sr-only">Verification code</FieldLabel>
                 <OTPField
                   aria-label="Verification code"
-                  className="w-full"
+                  className="w-full max-w-[calc(6*var(--control-xl)_+_4*var(--stroke-width)_+_8*var(--space-unit))] sm:gap-3"
                   length={6}
                   autoSubmit
                   value={field.state.value}
                   onValueChange={(val) => field.handleChange(val)}
                 >
-                  <OTPFieldInput autoFocus className={otpInputClassName} />
-                  <OTPFieldInput aria-label="Character 2 of 6" className={otpInputClassName} />
-                  <OTPFieldInput aria-label="Character 3 of 6" className={otpInputClassName} />
-                  <OTPFieldSeparator />
-                  <OTPFieldInput aria-label="Character 4 of 6" className={otpInputClassName} />
-                  <OTPFieldInput aria-label="Character 5 of 6" className={otpInputClassName} />
-                  <OTPFieldInput aria-label="Character 6 of 6" className={otpInputClassName} />
+                  <OtpDigits start={1} />
+                  <OTPFieldSeparator className="data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-2" />
+                  <OtpDigits start={4} />
                 </OTPField>
                 {errorMessage ? (
                   <FieldError match={true}>{errorMessage as string}</FieldError>
