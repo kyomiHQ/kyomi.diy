@@ -21,6 +21,19 @@ import {
 import { getReaderPreferences } from "@modules/reader/lib/preferences";
 import { InboxArrivalTransition } from "../lib/arrival-transition";
 
+const INBOX_PROGRESS_TOTAL = 3;
+
+function inboxProgress(value: number) {
+  return {
+    progress: {
+      value,
+      max: INBOX_PROGRESS_TOTAL,
+      label: "Opening inbox progress",
+      showCount: false,
+    },
+  };
+}
+
 export function useInboxArrival(destination: string) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -89,28 +102,37 @@ export function useInboxArrival(destination: string) {
       title: "Fetching feeds",
       type: "loading",
       timeout: 0,
-      data: { filledLoading: true },
+      data: inboxProgress(0),
     });
     let pending = true;
 
     try {
       await finishSetup();
       const href = await prepareInbox(() => {
-        if (pending) toastManager.update(toastId, { title: "Prepping your inbox" });
+        if (pending) {
+          toastManager.update(toastId, { title: "Prepping your inbox", data: inboxProgress(1) });
+        }
       });
       if (router.state.location.pathname !== "/onboarding") {
         throw new Error("Onboarding is no longer the active route.");
       }
 
-      toastManager.update(toastId, { title: "Opening inbox" });
+      toastManager.update(toastId, { title: "Opening inbox", data: inboxProgress(2) });
       const rect = button?.getBoundingClientRect();
       await play(
         () => router.navigate({ href, replace: true }),
         rect && [rect.left + rect.width / 2, rect.top + rect.height / 2],
       );
+      toastManager.update(toastId, {
+        type: "success",
+        timeout: 650,
+        data: inboxProgress(INBOX_PROGRESS_TOTAL),
+      });
+    } catch (error) {
+      toastManager.close(toastId);
+      throw error;
     } finally {
       pending = false;
-      toastManager.close(toastId);
     }
   };
 }

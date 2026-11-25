@@ -42,7 +42,7 @@ export function ToastRow({
         maxMorphChars={maxMorphChars}
         toast={toast}
       />
-      {progress ? (
+      {progress && progress.showCount !== false ? (
         <span
           className="inline-flex shrink-0 text-muted-foreground tabular-nums"
           data-slot="toast-count"

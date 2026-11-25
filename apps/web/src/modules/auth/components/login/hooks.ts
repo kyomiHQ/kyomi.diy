@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
 import { authClient } from "@lib/auth/client";
 import { logClientError } from "@kyomi/reader/lib/errors";
-import { prefetchInboxFlow } from "@modules/inbox/lib/navigation";
 import { toastManager } from "@kyomi/ui/components/toast";
 import {
   emailOtpDefaultValues,
@@ -57,9 +54,7 @@ export function useEmailForm(onSent: (email: string) => void) {
   });
 }
 
-export function useOtpForm(email: string, returnTo: string) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
+export function useOtpForm(email: string, onVerified: () => void) {
   return useForm({
     defaultValues: otpDefaultValues,
     validators: {
@@ -71,22 +66,13 @@ export function useOtpForm(email: string, returnTo: string) {
         const result = await authClient.signIn.emailOtp({
           email,
           otp: value.otp,
-          callbackURL: returnTo,
         });
 
         if (result.error) {
           throw new Error(result.error.message?.trim() || "Invalid code");
         }
 
-        await Promise.all([router.invalidate(), prefetchInboxFlow(router, queryClient)]);
-        await router.navigate({ href: returnTo });
-        // The onboarding guard redirects new accounts; its first step is confirmation enough.
-        if (!router.state.location.pathname.startsWith("/onboarding")) {
-          toastManager.add({
-            title: "Logged in",
-            type: "success",
-          });
-        }
+        onVerified();
       } catch (error) {
         logClientError("auth.verify_otp", error);
         toastManager.add({

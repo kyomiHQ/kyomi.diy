@@ -61,7 +61,7 @@ export function ArrivalScope({ children }: PropsWithChildren) {
         ref={scope}
         style={active ? { height: "100dvh" } : { overflow: "visible" }}
         pageEffect={phase === "capture"}
-        direction="btt"
+        direction="rtl"
         curve={0.1}
         span={0.8}
         palette={palette}

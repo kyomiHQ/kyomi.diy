@@ -1,4 +1,5 @@
 import { Button } from "@kyomi/ui/components/button";
+import { useStore } from "@tanstack/react-form";
 import { AccountHeading } from "./layout";
 import { Form } from "@kyomi/ui/components/form";
 import { Field, FieldError, FieldLabel } from "@kyomi/ui/components/field";
@@ -22,9 +23,11 @@ function OtpDigits({ start }: { start: 1 | 4 }) {
   );
 }
 
-export function OtpStep({ email, returnTo }: { email: string; returnTo: string }) {
-  const otpForm = useOtpForm(email, returnTo);
+export function OtpStep({ email, onVerified }: { email: string; onVerified: () => void }) {
+  const otpForm = useOtpForm(email, onVerified);
+  const isSubmitting = useStore(otpForm.store, (state) => state.isSubmitting);
   const { handleResendCode, isResending } = useResendCode(email);
+  const isBusy = isSubmitting || isResending;
 
   return (
     <>
@@ -35,7 +38,7 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
         onSubmit={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          void otpForm.handleSubmit();
+          if (!isBusy) void otpForm.handleSubmit();
         }}
       >
         <otpForm.Field name="otp">
@@ -52,6 +55,7 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
                   className="w-full [--otp-unit:max(var(--space-unit),calc(100cqi/75))] sm:gap-[calc(3*var(--otp-unit))]"
                   length={6}
                   autoSubmit
+                  readOnly={isBusy}
                   value={field.state.value}
                   onValueChange={(val) => field.handleChange(val)}
                 >
@@ -67,13 +71,9 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
           }}
         </otpForm.Field>
 
-        <otpForm.Subscribe selector={(state) => [state.isSubmitting]}>
-          {([isSubmitting]) => (
-            <Button className="w-full" size="xl" type="submit" loading={Boolean(isSubmitting)}>
-              Continue
-            </Button>
-          )}
-        </otpForm.Subscribe>
+        <Button className="w-full" size="xl" type="submit" disabled={isBusy} loading={isSubmitting}>
+          Continue
+        </Button>
 
         <Button
           className="w-full"
@@ -81,7 +81,7 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
           size="xl"
           type="button"
           onClick={() => void handleResendCode()}
-          disabled={isResending}
+          disabled={isBusy}
         >
           {isResending ? "Resending…" : "Resend code"}
         </Button>

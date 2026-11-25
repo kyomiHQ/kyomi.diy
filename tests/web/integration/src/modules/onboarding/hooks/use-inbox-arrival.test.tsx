@@ -64,7 +64,9 @@ test("keeps one loading toast in sync with feed, preload, and navigation complet
     arrival = result.current(() => setup.promise, null);
   });
   expect(screen.getByText("Fetching feeds")).toBeTruthy();
-  expect(add).toHaveBeenCalledWith(expect.objectContaining({ data: { filledLoading: true } }));
+  const progress = screen.getByRole("progressbar", { name: "Opening inbox progress" });
+  expect(progress).toHaveProperty("value", 0);
+  expect(progress).toHaveProperty("max", 3);
 
   await act(async () => setup.resolve());
   expect(screen.getByText("Fetching feeds")).toBeTruthy();
@@ -72,6 +74,7 @@ test("keeps one loading toast in sync with feed, preload, and navigation complet
 
   await act(async () => feeds.resolve());
   expect(screen.getByText("Prepping your inbox")).toBeTruthy();
+  expect(progress).toHaveProperty("value", 1);
   expect(requests.navigate).not.toHaveBeenCalled();
 
   await act(async () => preload.resolve());
@@ -82,6 +85,7 @@ test("keeps one loading toast in sync with feed, preload, and navigation complet
 
   await act(async () => preferences.resolve({ language: "zh" }));
   expect(screen.getByText("Opening inbox")).toBeTruthy();
+  expect(progress).toHaveProperty("value", 2);
   expect(requests.navigate).toHaveBeenCalledWith({ href: "/inbox?filter=all", replace: true });
   expect(add).toHaveBeenCalledOnce();
   expect(close).not.toHaveBeenCalled();
@@ -90,7 +94,9 @@ test("keeps one loading toast in sync with feed, preload, and navigation complet
     navigation.resolve();
     await arrival;
   });
-  expect(close).toHaveBeenCalledWith(add.mock.results[0]?.value);
+  expect(progress).toHaveProperty("value", 3);
+  expect(screen.getByRole("progressbar")).toBe(progress);
+  expect(close).not.toHaveBeenCalled();
 });
 
 test("closes on preload failure and ignores a later feed response", async () => {

@@ -9,14 +9,13 @@ import {
   useMotionValue,
   useTransform,
   animate,
-  AnimatePresence,
   type MotionValue,
 } from "motion/react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { cn } from "../../lib/utils";
 import { TextMorph } from "../text-morph";
+import { Tooltip, TooltipPopup } from "../tooltip";
 import {
-  fontWeights,
   springs,
   type SliderComfortableProps,
   type SliderProps,
@@ -224,6 +223,19 @@ function SliderComfortable({
     cursorX: number;
   } | null>(null);
   const [showHoverTooltip, dispatchHoverTooltip] = useReducer(hoverTooltipReducer, false);
+  const tooltipX = hoverPreview?.cursorX;
+  const tooltipAnchor = useMemo(
+    () =>
+      tooltipX === undefined
+        ? undefined
+        : {
+            getBoundingClientRect() {
+              const track = containerRef.current?.getBoundingClientRect();
+              return new DOMRect((track?.left ?? 0) + tooltipX, track?.top ?? 0);
+            },
+          },
+    [tooltipX],
+  );
 
   useEffect(() => {
     if (!isHovered) {
@@ -486,30 +498,15 @@ function SliderComfortable({
           onPointerCancel={handlePointerUp}
           onPointerUp={handlePointerUp}
         />
-        {/* Hover value tooltip — outside overflow-hidden container */}
-        <AnimatePresence>
-          {hoverPreview && showHoverTooltip && !isPressed && (
-            <m.div
-              key="hover-tooltip"
-              className="absolute -translate-x-1/2 pointer-events-none z-20"
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4, transition: { duration: 0.1 } }}
-              transition={springs.fast}
-              style={{
-                left: hoverPreview.cursorX,
-                top: -30,
-              }}
-            >
-              <span
-                className="whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[12px] text-background tabular-nums"
-                style={{ fontVariationSettings: fontWeights.medium }}
-              >
-                {formatValue(hoverPreview.snappedValue)}
-              </span>
-            </m.div>
-          )}
-        </AnimatePresence>
+        <Tooltip open={Boolean(hoverPreview && showHoverTooltip && !isPressed)}>
+          <TooltipPopup
+            anchor={tooltipAnchor}
+            aria-hidden
+            className="pointer-events-none whitespace-nowrap tabular-nums"
+          >
+            {hoverPreview && formatValue(hoverPreview.snappedValue)}
+          </TooltipPopup>
+        </Tooltip>
 
         <m.div
           ref={mergedRef}
@@ -543,6 +540,8 @@ function SliderComfortable({
               <SliderPrimitive.Range />
             </SliderPrimitive.Track>
             <SliderPrimitive.Thumb
+              aria-label={props["aria-label"]}
+              aria-valuetext={formatValue(value)}
               className="block outline-none"
               onFocus={(e) => {
                 if (e.currentTarget.matches(":focus-visible")) setIsFocused(true);

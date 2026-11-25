@@ -106,9 +106,6 @@ export function RecapSkeleton() {
         <div aria-hidden="true" className="mt-auto h-[52px] shrink-0" />
       </div>
       <div className={RECAP_SUMMARY_SECTION_CLASS}>
-        <div className="mb-2 flex h-6 shrink-0 items-center px-2">
-          <Skeleton className="h-5 w-28" />
-        </div>
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="flex min-w-0 items-center gap-2.5 rounded-2xl p-2">
@@ -123,9 +120,6 @@ export function RecapSkeleton() {
         </div>
       </div>
       <div className={RECAP_SUMMARY_SECTION_CLASS}>
-        <div className="mb-2 flex h-6 shrink-0 items-center px-2">
-          <Skeleton className="h-5 w-32" />
-        </div>
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, index) => (
             <div key={index} className="h-[60px] space-y-1 rounded-xl px-2 py-2">

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { Login } from "@modules/auth/components/login";
 
@@ -17,10 +16,9 @@ function defer<T>(): Deferred<T> {
 
 const mocks = vi.hoisted(() => ({
   authState: { isAuthenticated: false, isPending: false },
-  prefetchInboxFlow: vi.fn(() => Promise.resolve()),
   router: {
-    invalidate: vi.fn(() => Promise.resolve()),
     navigate: vi.fn(() => Promise.resolve()),
+    state: { location: { pathname: "/inbox" } },
   },
   sendVerificationOtp: vi.fn(),
   signInEmailOtp: vi.fn(),
@@ -43,10 +41,6 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: string }) => <a href="/register">{children}</a>,
 }));
 
-vi.mock("@modules/inbox/lib/navigation", () => ({
-  prefetchInboxFlow: mocks.prefetchInboxFlow,
-}));
-
 vi.mock("@kyomi/ui/components/toast", () => ({
   toastManager: {
     add: mocks.toastAdd,
@@ -54,14 +48,8 @@ vi.mock("@kyomi/ui/components/toast", () => ({
   },
 }));
 
-function renderLogin() {
-  const queryClient = new QueryClient();
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <Login redirect="/inbox" />
-    </QueryClientProvider>,
-  );
+function renderLogin(register = false) {
+  return render(<Login redirect="/inbox" register={register} />);
 }
 
 function getOtpInputs(container: HTMLElement): HTMLInputElement[] {
@@ -87,6 +75,7 @@ beforeEach(() => {
   mocks.signInEmailOtp.mockReset();
   mocks.toastAdd.mockReset();
   mocks.router.navigate.mockClear();
+  mocks.authState.isAuthenticated = false;
 });
 
 afterEach(() => {
@@ -134,7 +123,6 @@ describe("Login", () => {
     expect(mocks.signInEmailOtp).toHaveBeenCalledWith({
       email: "reader@example.com",
       otp: "123456",
-      callbackURL: "/inbox",
     });
     expect(screen.getByRole("button", { name: /Continue/ }).hasAttribute("data-loading")).toBe(
       true,
@@ -144,7 +132,32 @@ describe("Login", () => {
       verify.resolve({ error: null });
     });
 
-    await waitFor(() => expect(mocks.router.navigate).toHaveBeenCalledWith({ href: "/inbox" }));
+    await waitFor(() =>
+      expect(mocks.router.navigate).toHaveBeenCalledWith({ href: "/inbox", replace: true }),
+    );
+  });
+
+  test("keeps the OTP form hidden while the verified registration navigates once", async () => {
+    const navigation = defer<void>();
+    mocks.router.navigate.mockReturnValueOnce(navigation.promise);
+    mocks.signInEmailOtp.mockResolvedValue({ error: null });
+    const { container, rerender } = renderLogin(true);
+    const [firstInput] = await reachOtpStep(container);
+
+    await act(async () => {
+      fireEvent.change(firstInput!, { target: { value: "123456" } });
+    });
+
+    expect(screen.getByRole("status").textContent).toBe("Loading");
+    expect(screen.queryByText("Enter verification code")).toBeNull();
+    expect(mocks.router.navigate).toHaveBeenCalledTimes(1);
+
+    mocks.authState.isAuthenticated = true;
+    rerender(<Login redirect="/inbox" register />);
+    expect(screen.queryByText("Enter verification code")).toBeNull();
+    expect(mocks.router.navigate).toHaveBeenCalledTimes(1);
+
+    await act(async () => navigation.resolve());
   });
 
   test("waits for a complete code before verifying", async () => {

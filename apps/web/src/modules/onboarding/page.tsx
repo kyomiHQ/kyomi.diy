@@ -309,7 +309,8 @@ function OnboardingStepForm({
 
   const fieldError = error ?? serverError;
   const errorId = fieldError ? "onboarding-error" : undefined;
-  const valid = parsed.success && !fieldError;
+  // A previous server failure should not prevent retrying a valid selection.
+  const valid = parsed.success;
 
   useEffect(() => {
     onValidityChange(valid);
