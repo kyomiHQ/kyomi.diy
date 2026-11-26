@@ -33,6 +33,22 @@ describe("formatInboxTimestamp", () => {
     );
   });
 
+  test("formats dates and relative times with the preferred locale", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW));
+
+    const date = isoFromNow(0);
+    expect(formatInboxTimestampSsrFallback(date, "date", HOUR_CYCLE, "fr-CA")).toBe(
+      new Intl.DateTimeFormat("fr-CA", { dateStyle: "medium", timeZone: "UTC" }).format(NOW),
+    );
+    expect(formatInboxTimestamp(isoFromNow(-7_200_000), "relative-long", HOUR_CYCLE, "fr-CA")).toBe(
+      new Intl.RelativeTimeFormat("fr-CA", { numeric: "auto" }).format(-2, "hour"),
+    );
+    expect(formatInboxTimestampSsrFallback(date, "iso", HOUR_CYCLE, "fr-CA")).toBe(
+      formatInboxTimestampSsrFallback(date, "iso", HOUR_CYCLE),
+    );
+  });
+
   test("keeps relative display for the server fallback", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(NOW));

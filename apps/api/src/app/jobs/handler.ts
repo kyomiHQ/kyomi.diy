@@ -139,11 +139,8 @@ export const makeJobHandler = Effect.gen(function* () {
                   ? config.CATALOG_REFRESH_INTERVAL_MS
                   : undefined,
               refreshGeneration: job.payload.generation,
-              // Best-effort embedding classification runs alongside the keyword classifier when a
-              // key is configured; absent means refresh proceeds with the keyword classifier only.
-              // The timeout bounds each embeddings request, so a stalled provider can't hold the
-              // refresh job indefinitely.
-              embeddingClassifier: embeddingClassifierConfig(30_000, config),
+              // Local embedding classification runs alongside the keyword classifier.
+              embeddingClassifier: embeddingClassifierConfig(),
             },
           ),
         log.error("worker.job.abandoned", {

@@ -1,0 +1,205 @@
+# Local embeddings
+
+[Read the illustrated browser report](embeddings.html), generated with glyph-kit from the
+[editable report spec](embeddings.glyph.json). The report is a self-contained HTML snapshot of
+this document. To refresh it after updating the spec:
+
+```sh
+node docs/architecture/embeddings.glyph.mjs
+```
+
+The exporter uses `~/.agents/skills/glyph-kit` by default; pass another skill directory as its
+first argument if needed. It preserves the kit's layout and adds wrapping for long source paths.
+
+`packages/ingest/src/services/embeddings.ts` owns the server-only encoder. Existing feed
+classification in `services/feed/embeddings.ts` continues to own text preparation, batch limits,
+partial failures, category-head scoring, and article/feed selection rules. The API wraps these
+Promise operations through its existing Effect services. No new service process or workspace is
+required.
+
+The implementation uses `encoders =3.1.0`, Bekko slim-100k revision
+`635eb094a82ce43f0eb882c12b31406b3d93ec26`, 512 dimensions, and int8 table storage. Rust compiles the
+model into a WASM artifact at build time. The application lazily instantiates it once per process;
+`AppLive` initializes it during boot so a missing artifact fails startup. Each input is bounded and
+bulk encoding yields between texts. Application requests never download weights or spawn Cargo.
+
+The upstream model returns unnormalized pooled vectors. The existing classifier normalizes them;
+other consumers must use cosine similarity or explicitly normalize before a dot product. Empty
+text produces a finite zero vector and supplies no semantic evidence.
+
+## Build and deployment
+
+Install Rust 1.99.1 and `rustup target add wasm32-unknown-unknown`, then run:
+
+```sh
+bun run --cwd packages/ingest embeddings:build
+```
+
+Cargo.lock and the explicit model feature pin the source model revision and dependencies. The
+first build downloads source weights; subsequent builds use `encoders/target/ese-cache`.
+`encoders/dist/kyomi_encoders.wasm` is generated, ignored, included in the ingest Turbo build
+outputs, and copied from a dedicated Rust stage into the API image. Rust is absent from runtime
+images. `docker:up` builds the host artifact before starting the bind-mounted development stack.
+Direct host commands need the same build first. CI builds the artifact before API tests and builds.
+
+## Model migration
+
+The encoder identity includes model revision, dimensions, quantization, and pooling implementation.
+Generated category weights carry that identity; production classification rejects a head trained
+with another encoder even if dimensions match. Evaluation caches use model-specific directories.
+
+Use the existing `category:train` command to retrain from the labeled articles and recalibrate
+selection rules using feed-grouped cross-validation. Keep the accepted static evaluation floors
+unchanged when tuning; report the former BGE targets separately.
+Only after accepting quality, run:
+
+```sh
+bun run categories:backfill -- --classifier embedding --all --apply
+bun run categories:report
+```
+
+Backfill retains prior-model rows; reads and coverage reports select the active model. Backfill
+status is also model-specific, so old completion records do not skip new-model work. Rollback
+requires restoring the old encoder, matching head, and read identity together.
+
+Backfill writes use bounded 1,000-row statements, independently of the feed page size. This
+prevents large feeds/pages from exceeding PostgreSQL's 65,535 bind-parameter limit. Assignment
+writes finish before completion statuses are recorded. A write failure can be retried; status
+chunks already committed describe completed assignment writes. Pages are not atomic transactions;
+existing model-scoped replacement and conflict handling are preserved.
+
+Cloudflare `/embed` and its application configuration are removed. The separate gateway still
+serves `/translate` and `/chat`. Chat now requires Worker secret `CHAT_TOKEN`; evaluation clients
+use `CLOUDFLARE_CHAT_URL` and `CLOUDFLARE_CHAT_TOKEN`. Provision that secret when deploying the gateway.
+Local environment migration does not provision a remote Worker secret or deploy the gateway.
+
+## Evaluation on 2026-11-25
+
+Training has 1,854 labeled articles. Exactly 1,844 current article texts match archived BGE-M3
+vectors, allowing a paid-free matched comparison. The 345 stored evaluation articles are disjoint
+from training. Training options and text preparation are held constant unless explicitly stated.
+
+| Model                      | Matched CV top1 | Matched CV best micro F1 | Stored top1 | Stored F1 |
+| -------------------------- | --------------: | -----------------------: | ----------: | --------: |
+| BGE-M3 baseline            |          77.47% |                   70.03% |      75.32% |    68.70% |
+| Bekko slim100k, 512, int8  |          74.81% |                   67.35% |      71.79% |    62.23% |
+| Bekko slim100k, 1024, int8 |          75.12% |                   67.29% |      68.91% |    62.30% |
+| Bekko full200k, 1024, int8 |          75.00% |                   68.05% |      71.47% |    61.78% |
+
+All three static candidates fail existing stored-data gates (75% top1, 65% F1). The 512,
+slim1024, and full1024 stored abstention rates are 12.46%, 15.65%, and 20.29% respectively;
+the latter two also fail the 15% abstention ceiling. Full200k uses its cross-validation-selected
+article rule (floor .20, secondary margin .30); the slim candidates retain .18/.40. Full200k is
+pinned to revision `c18167b8f244c1bc6de21ce9b710bac8a29c4615`. These original BGE gates remain
+quality targets, not parity claims. The owner accepted the measured static tradeoff on 2026-11-25.
+The accepted 512 baseline now guards against further regression: stored top1 71.7948717948718%,
+micro F1 62.23404255319149%, and abstention at most 12.46376811594203%. The smaller regression
+and field F1 floors remain 60% and 65%.
+
+The smaller regression and field samples pass, illustrating why those samples alone are
+insufficient. Changing L2 to 1e-4 or 1e-3 did not improve matched CV F1 for the 512 candidate;
+existing 3e-4 regularization remains selected. The committed implementation retains the 512
+candidate: doubling its width or using the full vocabulary did not restore held-out quality.
+The full model's 209,005,448-byte artifact and measured approximately 1 GB load-time RSS peak
+add cost without resolving that regression. The existing article and feed selection rules remain.
+
+The accepted tradeoff authorizes the local migration; it does not establish quality parity with BGE
+or imply that the remote API or gateway has been deployed.
+
+The local full backfill completed on 2026-11-25: 167,470 feeds and 334,782 articles scanned,
+167,470 processed coverage records, zero failed feeds, and no encoding failures. It assigned
+article categories to 279,167 items and abstained on 55,615. The active-model coverage report
+over all stored publication dates (`categories:report -- --days 36500`) reports 99.94% coverage
+including feed fallback; this is availability of categories, not classification accuracy.
+Prior embedding assignments remain stored separately for rollback.
+
+### Accuracy tuning after acceptance
+
+The training and stored evaluation sets have zero article-ID, feed-ID, or feed-URL overlap.
+Thirty audit articles share twelve hostnames with training (including generic publishing hosts),
+so this is feed-disjoint rather than hostname-disjoint evidence. Candidate selection used the
+same 1,844 matched training examples, with deterministic sorted-feed two-fold screening and
+five-fold validation for the finalist. Stored evaluation labels were not used to select candidates.
+Top1 counts either expected topic as correct across 1,620 labeled examples; macro top1 averages
+the seventeen primary-topic groups. The remaining examples train/evaluate abstention.
+
+| Two-fold training candidate              |   Top1 | Macro top1 |
+| ---------------------------------------- | -----: | ---------: |
+| Existing balanced, 300 epochs            | 73.15% |     71.82% |
+| Unbalanced                               | 72.16% |     67.81% |
+| Balanced, 100 epochs                     | 72.84% |     71.46% |
+| Balanced, 600 epochs                     | 73.15% |     71.82% |
+| Square-root frequency weights            | 72.90% |     69.99% |
+| 80/20 primary/secondary training targets | 72.84% |     70.77% |
+
+The optimizer, normalization, and scorer were reused. Unbalanced and square-root weighting
+improved micro F1 but reduced minority-class accuracy; 600 epochs reproduced the 300-epoch
+predictions. Retain inverse-frequency weighting, 300 epochs, learning rate .05, and L2 .0003.
+
+| Two-fold input candidate                            |   Top1 | Macro top1 |
+| --------------------------------------------------- | -----: | ---------: |
+| Existing title + summary + body, 4,000 characters   | 73.15% |     71.82% |
+| Title + summary                                     | 67.78% |     66.24% |
+| First 512 characters                                | 66.42% |     64.98% |
+| First 1,000 characters                              | 70.06% |     68.61% |
+| 25% normalized title + 75% normalized existing text | 73.52% |     72.02% |
+
+Five-fold validation of the weighted-title finalist gained only five correct predictions: 43
+corrections and 38 regressions. Top1 moved from 74.81% to 75.12%, macro top1 from 74.27% to
+74.36%, and best micro F1 from 67.35% to 68.12%. Science & Research lost three of forty correct
+predictions. A deterministic paired feed-cluster bootstrap (4,000 resamples, seed 20261125)
+gave a top1 delta interval of -0.819 to +1.406 percentage points and macro delta of -1.176 to
++1.379 points. These are sensitivity diagnostics after candidate selection, not independent
+confidence claims. The F1-optimal weighted rule also abstained on 19.63% of CV examples.
+
+Retain the existing text builder and head. The uncertain aggregate gain and minority-topic loss
+do not justify a second encoding, pooling logic, and another representation migration. No
+accuracy recovery is claimed. Deterministic three/twelve-month scenarios also found that the
+shorter inputs reduce character workload to 13–38% while compounding classification errors;
+weighted inputs double encoder calls. Scenario volumes and growth were assumptions, not traffic
+forecasts. Future representation changes must retrain the head and change the classifier identity
+together; generic `encodeTexts` remains independent of article preparation.
+
+Local experiment artifacts are in `/tmp/kyomi-embedding-tuning` and `/tmp/kyomi-representation`
+(reports, exact configurations, predictions, and deterministic bootstrap/regret scripts). They
+are scratch artifacts, not durable repository fixtures.
+
+Two small interest-ranking smoke checks use explicit cosine similarity, including Chinese and
+French queries. They show basic feasibility, not independently judged recommendation quality.
+Onboarding bundle generation and feed profiles remain separate product work.
+
+## Decision and regret analysis
+
+The severe risks are mixing incompatible model artifacts and accepting semantic regression based
+on speed alone. Identity checks, retraining, model-scoped caches, and held-out evaluations address
+those risks. Static pooling is order-blind: the measured vectors for “dog bites man” and “man bites
+dog” are identical. This limitation cannot be fixed by changing the runtime bridge.
+
+WASM keeps one portable artifact and avoids native binding distribution or subprocess lifecycle
+code. Its bridge can be replaced later through `encodeTexts` if measurements justify that work.
+The 512 artifact is 52,840,828 bytes. A local sample measured approximately 156 microseconds per
+4,000-character input including scheduling, under concurrent work; it is not a production capacity
+measurement. Deterministic 3/12-month growth and transport-overhead sensitivity scripts were run
+in scratch, with assumptions distinguished from measurements. They did not justify introducing a
+separate process before task quality is established.
+
+## Documentation evidence
+
+- Owner/context: project architecture, packages/ingest, API, testing, environment, security and QA
+  skills; existing category training, refresh, extraction, and backfill paths.
+- Runtime proof: encoders 3.1.0 source and pinned model catalog, generated model constants,
+  Effect 4.1.4 `Layer.effectDiscard` declarations; actual Bun 1.3.14 Linux encoding with networking
+  disabled, plus successful `AppLive` initialization and disposal.
+- Official references, accessed 2026-11-25:
+  [encoders](https://docs.rs/encoders/3.1.0/encoders/),
+  [model catalog](https://github.com/flowercomputers/encoders),
+  [Rust WASM target](https://doc.rust-lang.org/rustc/platform-support/wasm32-unknown-unknown.html).
+- Applied contract: fixed static model, build-time downloads only, explicit identity, WASM target
+  without host filesystem/thread imports. No rayon feature is enabled.
+- Kyomi divergence: bounded input, cooperative yielding, and server-side WASM wrapper around the
+  upstream Rust API. Existing classifier text caps are preserved.
+- Verification: focused encoder/classifier/config/gateway/training/backfill tests, app and ingest
+  typechecks, boundary/environment checks, Compose validation, and web production build. The API
+  Docker image builds and exports successfully. Its Bun 1.3.14 runtime encodes English, Chinese,
+  and empty inputs with networking disabled; all vectors are finite and 512-dimensional, and
+  the empty vector is zero. The four accepted-quality evaluation tests pass.

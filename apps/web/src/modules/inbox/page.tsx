@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+import { starterBundles } from "@kyomi/ingest/ingestion/starter-bundles";
 import {
   InboxPreferencesBootstrapProvider,
   type InboxPreferences,
@@ -31,6 +32,10 @@ import { InboxPageLayout } from "./components/page/layout";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInboxSelectionNavigation } from "./hooks/use-selection-navigation";
+
+const STARTER_FEED_NAMES = new Map<string, string>(
+  starterBundles.flatMap(({ feeds }) => feeds.map(({ url, title }) => [url, title] as const)),
+);
 
 type InboxPageProps = {
   initialInboxPreferences?: InboxPreferences;
@@ -150,7 +155,9 @@ function InboxPageContent({
       return undefined;
     }
     const activeFeed = followedFeedsData?.find((feed) => feed.feedId === feedId);
-    return activeFeed?.title || activeFeed?.url;
+    return activeFeed
+      ? STARTER_FEED_NAMES.get(activeFeed.url) || activeFeed.title || activeFeed.url
+      : undefined;
   }, [feedId, followedFeedsData]);
   const isFeedBackedListView =
     !search &&

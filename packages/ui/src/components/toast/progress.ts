@@ -5,6 +5,7 @@ export type ToastProgressData = {
     value: number;
     max: number;
     label?: string;
+    showCount?: boolean;
   };
 };
 

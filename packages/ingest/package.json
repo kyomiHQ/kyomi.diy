@@ -21,11 +21,13 @@
     "./lib/outbound": "./src/lib/outbound.ts"
   },
   "scripts": {
-    "fmt": "oxfmt src",
-    "fmt:check": "oxfmt --check src",
-    "lint": "oxlint src",
-    "lint:fix": "oxlint --fix src",
-    "typecheck": "tsgo -p tsconfig.json --noEmit"
+    "fmt": "oxfmt src encoders/build.ts",
+    "fmt:check": "oxfmt --check src encoders/build.ts",
+    "lint": "oxlint src encoders/build.ts",
+    "lint:fix": "oxlint --fix src encoders/build.ts",
+    "typecheck": "tsgo -p tsconfig.json --noEmit",
+    "embeddings:build": "bun encoders/build.ts",
+    "build": "bun run embeddings:build"
   },
   "dependencies": {
     "@kyomi/db": "workspace:*",

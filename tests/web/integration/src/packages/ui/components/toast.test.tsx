@@ -28,8 +28,8 @@ describe("ToastProvider", () => {
         disconnect() {}
       },
     );
-    // A single-line toast is 360 x 40; the squircle path is measured from this.
-    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
+    // The squircle path is measured from a 280 x 40 single-line toast.
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(280);
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(40);
   });
 

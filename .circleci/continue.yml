@@ -135,6 +135,26 @@ commands:
                 paths:
                   - .turbo
 
+  setup-encoders:
+    description: Build the pinned local embedding model for tests and production packaging.
+    steps:
+      - restore_cache:
+          keys:
+            - encoders-v1-{{ arch }}-{{ checksum "packages/ingest/encoders/Cargo.lock" }}-{{ checksum "packages/ingest/encoders/Cargo.toml" }}
+      - run:
+          name: Install Rust and build local embeddings
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1
+            . "$HOME/.cargo/env"
+            echo 'source "$HOME/.cargo/env"' >> "$BASH_ENV"
+            rustup target add wasm32-unknown-unknown
+            bun run --cwd packages/ingest embeddings:build
+      - save_cache:
+          key: encoders-v1-{{ arch }}-{{ checksum "packages/ingest/encoders/Cargo.lock" }}-{{ checksum "packages/ingest/encoders/Cargo.toml" }}
+          paths:
+            - ~/.cargo/registry
+            - packages/ingest/encoders/target
+
 jobs:
   static-quality:
     executor: bun
@@ -184,6 +204,7 @@ jobs:
       - checkout
       - setup-bun:
           prefetch: false
+      - setup-encoders
       - run:
           name: Wait for Postgres, Redis and Meilisearch
           command: |
@@ -223,6 +244,7 @@ jobs:
       - checkout
       - setup-bun:
           prefetch: false
+      - setup-encoders
       - restore-turbo:
           scope: build
       - run:

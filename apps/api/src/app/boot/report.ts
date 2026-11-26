@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { feedCategoryAssignments, feedItemCategoryAssignments, feedItems } from "@kyomi/db";
 import { EMBEDDING_CLASSIFIER_METHOD, KEYWORD_CLASSIFIER_METHOD } from "@kyomi/ingest";
 import { Db, type Database } from "@adapters/db/service";
+import { activeEmbeddingModelId } from "@config/embeddings";
 import { InvalidArguments } from "@modules/catalog/errors";
 import { positiveIntFlag, valueAfter } from "@shared/cli/args";
 import { rowsFromExecute } from "@shared/db/rows";
@@ -105,6 +106,7 @@ export async function runCategoryCoverageReport(
   args: CategoryCoverageArgs,
   database: CategoryCoverageDatabase,
 ): Promise<CategoryCoverageReport> {
+  const modelId = activeEmbeddingModelId();
   const result = await database.execute(sql<CategoryCoverageRow>`
     WITH recent_items AS (
       SELECT ${feedItems.id} AS id, ${feedItems.feedId} AS feed_id
@@ -117,12 +119,14 @@ export async function runCategoryCoverageReport(
       FROM ${feedItemCategoryAssignments}
       WHERE ${feedItemCategoryAssignments.provenance} = 'classifier'
         AND ${feedItemCategoryAssignments.classifierMethod} = ${EMBEDDING_CLASSIFIER_METHOD}
+        AND ${feedItemCategoryAssignments.modelId} = ${modelId}
     ),
     feed_embedding AS (
       SELECT DISTINCT ${feedCategoryAssignments.feedId} AS feed_id
       FROM ${feedCategoryAssignments}
       WHERE ${feedCategoryAssignments.provenance} = 'classifier'
         AND ${feedCategoryAssignments.classifierMethod} = ${EMBEDDING_CLASSIFIER_METHOD}
+        AND ${feedCategoryAssignments.modelId} = ${modelId}
     ),
     item_keyword AS (
       SELECT DISTINCT ${feedItemCategoryAssignments.feedItemId} AS feed_item_id

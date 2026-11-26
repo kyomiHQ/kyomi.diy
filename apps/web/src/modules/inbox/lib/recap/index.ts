@@ -6,7 +6,7 @@ const absoluteFormatter = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
-export function formatRelativeTime(value: string) {
+export function formatRelativeTime(value: string, locale = "en") {
   const date = new Date(value);
   const timestamp = date.getTime();
   if (Number.isNaN(timestamp)) {
@@ -20,6 +20,18 @@ export function formatRelativeTime(value: string) {
   const hourMs = 60 * minuteMs;
   const dayMs = 24 * hourMs;
   const suffix = diffMs >= 0 ? "ago" : "from now";
+
+  if (locale !== "en") {
+    const locales = [locale, "en"];
+    if (absMs >= 30 * dayMs) {
+      return new Intl.DateTimeFormat(locales, { month: "short", day: "numeric" }).format(date);
+    }
+    const formatter = new Intl.RelativeTimeFormat(locales, { numeric: "auto", style: "short" });
+    if (absMs < 45 * secondMs) return formatter.format(0, "second");
+    if (absMs < hourMs) return formatter.format(Math.round(-diffMs / minuteMs), "minute");
+    if (absMs < dayMs) return formatter.format(Math.round(-diffMs / hourMs), "hour");
+    return formatter.format(Math.round(-diffMs / dayMs), "day");
+  }
 
   if (absMs < 45 * secondMs) {
     return "now";

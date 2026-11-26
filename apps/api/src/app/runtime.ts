@@ -1,5 +1,6 @@
 import { GarageAssets } from "@adapters/assets/garage";
 import { Effect, Layer, ManagedRuntime, type Scope } from "effect";
+import { encodeTexts } from "@kyomi/ingest";
 import { Auth } from "@adapters/auth/service";
 import { Db } from "@adapters/db/service";
 import { HttpClientLive } from "@adapters/http/client";
@@ -12,6 +13,7 @@ import { AppConfig } from "@config/env/service";
 import { FaviconResolver } from "@modules/favicon/service";
 import { FeedBackground } from "@modules/feeds/service";
 import { OpmlFeedsLive } from "@modules/opml/live";
+import { ConfigError } from "@shared/effect/errors";
 
 const ConfigAndLogger = Layer.mergeAll(
   AppConfig.layer,
@@ -19,6 +21,20 @@ const ConfigAndLogger = Layer.mergeAll(
 );
 
 const Infrastructure = Layer.mergeAll(
+  // Fail boot when the required local artifact is absent or incompatible, rather than silently
+  // falling back to keywords for every job. Do not validate the category head here: category:train
+  // uses AppLive specifically to replace a stale head after changing the encoder.
+  Layer.effectDiscard(
+    Effect.tryPromise({
+      try: () => encodeTexts([""]),
+      catch: (cause) =>
+        new ConfigError({
+          message:
+            "Local embedding model unavailable; run bun run --cwd packages/ingest embeddings:build",
+          cause,
+        }),
+    }),
+  ),
   Db.layer,
   Redis.layer,
   HttpClientLive,

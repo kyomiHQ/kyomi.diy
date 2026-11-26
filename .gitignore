@@ -38,3 +38,6 @@ packages/catalog/processing/exports
 packages/catalog/**/*.parquet
 packages/catalog/**/*.duckdb
 packages/catalog/**/*.db
+
+# Compiled local embedding model and Rust build cache
+packages/ingest/encoders/target/

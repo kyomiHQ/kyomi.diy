@@ -59,7 +59,7 @@ export function FolderPickerButton({
         className="cursor-pointer"
         onClick={() => onMove(folder.value)}
       >
-        <span className="min-w-0 flex-1 truncate">{folder.label}</span>
+        <span className="min-w-0 flex-1 wrap-anywhere">{folder.label}</span>
       </MenuItem>
     ))
   ) : (
@@ -72,7 +72,7 @@ export function FolderPickerButton({
           closeOnClick
           value={folder.value}
         >
-          <span className="min-w-0 flex-1 truncate">{folder.label}</span>
+          <span className="wrap-anywhere">{folder.label}</span>
         </MenuRadioItem>
       ))}
     </MenuRadioGroup>
@@ -106,7 +106,7 @@ export function FolderPickerButton({
       />
       <MenuPopup
         align="end"
-        className="w-40"
+        className="w-max min-w-[min(--spacing(40),var(--available-width))] max-w-[min(--spacing(64),var(--available-width))]"
         maxVisibleItems={shouldScrollFolders ? FOLDER_PICKER_SCROLL_THRESHOLD : undefined}
         shape="pill"
         side="bottom"

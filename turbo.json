@@ -7,6 +7,9 @@
       "env": ["EXPO_PUBLIC_AUTH_ORIGIN"],
       "outputs": ["dist/**", "build/**", ".next/**", ".output/**"]
     },
+    "@kyomi/ingest#build": {
+      "outputs": ["encoders/dist/**"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

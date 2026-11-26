@@ -52,7 +52,7 @@ describe("translation Worker route", () => {
         source_language: "en",
         target_language: "es",
       }),
-      { AI: ai, EMBEDDINGS_TOKEN: "embeddings-token", TRANSLATIONS_TOKEN: TOKEN },
+      { AI: ai, CHAT_TOKEN: "chat-token", TRANSLATIONS_TOKEN: TOKEN },
     );
 
     expect(response.status).toBe(200);
@@ -75,9 +75,9 @@ describe("translation Worker route", () => {
 
   test("rejects a missing or wrong translation token without calling Workers AI", async () => {
     const ai = fakeAi({ translated_text: "ignored" });
-    const env: WorkerEnv = { AI: ai, EMBEDDINGS_TOKEN: TOKEN, TRANSLATIONS_TOKEN: TOKEN };
+    const env: WorkerEnv = { AI: ai, CHAT_TOKEN: TOKEN, TRANSLATIONS_TOKEN: TOKEN };
 
-    for (const authorization of [null, "Bearer wrong", "Bearer test-embeddings-token"]) {
+    for (const authorization of [null, "Bearer wrong", "Bearer test-chat-token"]) {
       expect(
         (
           await worker.fetch(

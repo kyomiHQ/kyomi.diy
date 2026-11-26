@@ -173,8 +173,6 @@ describe("article list item categories", () => {
     const sql = renderSql(
       categoryLabelsFor({
         CATEGORY_CLASSIFIER_READ_MODE: "keyword",
-        CLOUDFLARE_EMBEDDINGS_URL: undefined,
-        CLOUDFLARE_EMBEDDINGS_TOKEN: undefined,
       }),
     );
     expect(sql).toMatch(/LIMIT 2\s*\)\s*AS fc/);

@@ -5,6 +5,8 @@ import type { TranslationResult } from "@kyomi/reader/schemas/translation";
 import { requestTranslation, getTranslation } from "../lib/api";
 import type { ReaderMode } from "../lib/mode";
 
+class TranslationPendingError extends Error {}
+
 async function translate(
   itemId: string,
   mode: ReaderMode,
@@ -14,13 +16,13 @@ async function translate(
   let result = await requestTranslation({ data: { itemId, mode, language }, signal });
   const deadline = Date.now() + 120_000;
   while (result.status === "processing" || result.status === "queued") {
-    if (Date.now() >= deadline) throw new Error("Translation is still queued. Try again shortly.");
+    if (Date.now() >= deadline) throw new TranslationPendingError();
     await new Promise((resolve) => setTimeout(resolve, 2000));
     signal.throwIfAborted();
     result = await getTranslation({ data: { itemId, translationId: result.id }, signal });
   }
   if (result.status !== "ready" || !result.translated_content)
-    throw new Error("Translation could not be completed.");
+    throw new Error("Translation failed");
   return result;
 }
 
@@ -42,16 +44,34 @@ export function useTranslation(
     queryFn: ({ signal }) => translate(itemId, mode, language, signal),
   });
   async function toggle() {
-    if (query.isFetching) return;
-    if (query.data) {
+    if (client.getQueryState(key)?.fetchStatus !== "idle") return;
+    if (client.getQueryData(key)) {
       client.setQueryData(key, null);
       return;
     }
-    const result = await query.refetch({ cancelRefetch: false });
-    if (result.error) toastManager.add({ title: result.error.message, type: "error" });
+
+    await toastManager
+      .promise(query.refetch({ cancelRefetch: false, throwOnError: true }), {
+        loading: {
+          title: "Translating your article",
+          type: "loading",
+          timeout: 0,
+          data: { filledLoading: true },
+        },
+        success: { title: "Article translated", type: "success", timeout: 2400 },
+        error: (error) => ({
+          title:
+            error instanceof TranslationPendingError
+              ? "Translation pending. Try again."
+              : "Translation failed. Try again.",
+          type: "error",
+        }),
+      })
+      .catch(() => undefined);
   }
   return {
     result: query.data,
+    isTranslating: query.isFetching,
     label: query.isFetching
       ? "Translating article…"
       : query.data

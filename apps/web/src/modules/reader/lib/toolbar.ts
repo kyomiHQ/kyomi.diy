@@ -46,6 +46,8 @@ export type ToolbarModel = {
   articleStyle: Record<string, string>;
   canRequestExtraction: boolean;
   displayReader: ArticleDetailDto["reader"]["selected"];
+  isTranslated: boolean;
+  isTranslating: boolean;
   extractPending: boolean;
   extractionError: string | null;
   inlineToolbarRef: React.RefObject<HTMLDivElement | null>;

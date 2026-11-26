@@ -2,6 +2,17 @@
 
 ARG BUN_VERSION=1.3.14
 
+# Compile once for the portable WASM target; no Rust toolchain or model downloads at runtime.
+FROM rust:1.99.1-bookworm AS embeddings
+WORKDIR /encoder
+RUN rustup target add wasm32-unknown-unknown
+COPY packages/ingest/encoders/Cargo.toml packages/ingest/encoders/Cargo.lock ./
+COPY packages/ingest/encoders/src ./src
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/encoder/target \
+    cargo build --locked --release --target wasm32-unknown-unknown && \
+    cp target/wasm32-unknown-unknown/release/kyomi_encoders.wasm /kyomi_encoders.wasm
+
 FROM oven/bun:${BUN_VERSION}-alpine AS deps
 WORKDIR /app
 
@@ -33,6 +44,8 @@ COPY docker docker
 COPY packages/db packages/db
 COPY packages/tsconfig packages/tsconfig
 COPY packages/ingest packages/ingest
+COPY packages/reader packages/reader
+COPY --from=embeddings /kyomi_encoders.wasm packages/ingest/encoders/dist/kyomi_encoders.wasm
 
 WORKDIR /app/apps/api
 EXPOSE 8000

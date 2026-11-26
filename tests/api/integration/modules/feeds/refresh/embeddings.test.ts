@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
   classifyFeedEmbedding,
   classifyItemEmbedding,
@@ -8,15 +8,12 @@ import {
 } from "@kyomi/ingest";
 import { FAKE_CATEGORY_MODEL } from "./fake-category-model";
 
-const originalFetch = globalThis.fetch;
 const FAKE_CONFIG: EmbeddingClassifierConfig = {
-  apiKey: "test-key",
-  apiUrl: "https://fake-embeddings.test/embed",
   categoryModel: FAKE_CATEGORY_MODEL,
 };
 
 /**
- * Deterministic 3-dimensional "embeddings" — real BGE-M3 vectors are much higher-dimensional, but
+ * Deterministic 3-dimensional "embeddings" — real model vectors are much higher-dimensional, but
  * a small hand-computable space, with FAKE_CATEGORY_MODEL as the category head, is enough to verify
  * the scoring, threshold, and fallback logic without needing real semantics.
  */
@@ -24,103 +21,59 @@ const UNIT_X = [1, 0, 0];
 const UNIT_Y = [0, 1, 0];
 const ORTHOGONAL_Z = [0, 0, 1];
 
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
-
 describe("embedTexts", () => {
-  test("returns one vector per input, sorted by response index", async () => {
-    globalThis.fetch = (async (url: string, init: RequestInit) => {
-      const body = JSON.parse(init.body as string) as { input: string[] };
-      expect(body.input).toEqual(["a", "b"]);
-      // Respond with indices reversed to verify embedTexts re-sorts by index rather than
-      // trusting array order.
-      return new Response(
-        JSON.stringify({
-          data: [
-            { embedding: UNIT_Y, index: 1 },
-            { embedding: UNIT_X, index: 0 },
-          ],
-        }),
-        { status: 200 },
-      );
-    }) as unknown as typeof fetch;
-
-    const result = await embedTexts(["a", "b"], FAKE_CONFIG);
+  test("preserves input order", async () => {
+    const result = await embedTexts(["a", "b"], {
+      encode: async (texts) => {
+        expect(texts).toEqual(["a", "b"]);
+        return [UNIT_X, UNIT_Y];
+      },
+    });
     expect(result).toEqual([UNIT_X, UNIT_Y]);
   });
 
-  test("returns an empty array without calling fetch for an empty input list", async () => {
-    let called = false;
-    globalThis.fetch = (async () => {
-      called = true;
-      return new Response("{}", { status: 200 });
-    }) as unknown as typeof fetch;
-
-    const result = await embedTexts([], FAKE_CONFIG);
-    expect(result).toEqual([]);
-    expect(called).toBe(false);
+  test("does not initialize the encoder for empty input", async () => {
+    expect(
+      await embedTexts([], {
+        encode: async () => {
+          throw new Error("unexpected");
+        },
+      }),
+    ).toEqual([]);
   });
 
-  test("throws with the response body when the API call fails", async () => {
-    globalThis.fetch = (async () =>
-      new Response("rate limited", { status: 429 })) as unknown as typeof fetch;
-
-    await expect(embedTexts(["a"], FAKE_CONFIG)).rejects.toThrow(/429/);
+  test("propagates encoder failures", async () => {
+    await expect(
+      embedTexts(["a"], {
+        encode: async () => {
+          throw new Error("unavailable");
+        },
+      }),
+    ).rejects.toThrow("unavailable");
   });
 
-  test("rejects a response with fewer vectors than inputs", async () => {
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ data: [{ embedding: UNIT_X, index: 0 }] }), {
-        status: 200,
-      })) as unknown as typeof fetch;
-
-    await expect(embedTexts(["a", "b"], FAKE_CONFIG)).rejects.toThrow(/1 vectors for 2 inputs/);
-  });
-
-  test("rejects a response whose indices skip an input", async () => {
-    globalThis.fetch = (async () =>
-      new Response(
-        JSON.stringify({
-          data: [
-            { embedding: UNIT_X, index: 0 },
-            { embedding: UNIT_Y, index: 0 },
-          ],
-        }),
-        { status: 200 },
-      )) as unknown as typeof fetch;
-
-    await expect(embedTexts(["a", "b"], FAKE_CONFIG)).rejects.toThrow(/did not match/);
-  });
-
-  test("aborts requests when timeoutMs elapses", async () => {
-    globalThis.fetch = (async (_url: string, init: RequestInit) =>
-      new Promise<Response>((_resolve, reject) => {
-        const signal = init.signal as AbortSignal;
-        expect(signal).toBeInstanceOf(AbortSignal);
-        signal.addEventListener("abort", () => reject(new Error("aborted")));
-      })) as unknown as typeof fetch;
-
-    await expect(embedTexts(["a"], { ...FAKE_CONFIG, timeoutMs: 1 })).rejects.toThrow("aborted");
+  test("rejects missing, inconsistent, and nonfinite vectors", async () => {
+    for (const vectors of [
+      [UNIT_X],
+      [UNIT_X, []],
+      [UNIT_X, [NaN, 0, 0]],
+      [UNIT_X, [Infinity, 0, 0]],
+    ]) {
+      await expect(embedTexts(["a", "b"], { encode: async () => vectors })).rejects.toThrow(
+        "invalid vectors",
+      );
+    }
   });
 });
 
-/** Answers every embeddings request with `vectorFor(text)` and records each request's inputs. */
+/** Inject the encoder at the existing classification seam. */
 function fakeWorker(vectorFor: (text: string, index: number, inputs: string[]) => number[]) {
   const requests: string[][] = [];
-  globalThis.fetch = (async (_url: string, init: RequestInit) => {
-    const body = JSON.parse(init.body as string) as { input: string[] };
-    requests.push(body.input);
-    return new Response(
-      JSON.stringify({
-        data: body.input.map((text, index) => ({
-          embedding: vectorFor(text, index, body.input),
-          index,
-        })),
-      }),
-      { status: 200 },
-    );
-  }) as unknown as typeof fetch;
+  FAKE_CONFIG.encode = async (texts) => {
+    const inputs = [...texts];
+    requests.push(inputs);
+    return inputs.map((text, index) => vectorFor(text, index, inputs));
+  };
   return requests;
 }
 

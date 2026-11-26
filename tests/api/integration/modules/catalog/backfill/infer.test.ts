@@ -11,10 +11,7 @@ import {
 import { backfillItemColumns, nextItemBackfillBatchSize } from "@modules/catalog/backfill/queries";
 import { fakeEmbeddings } from "../fakes";
 
-const EMBEDDING_CONFIG: EmbeddingClassifierConfig = {
-  apiKey: "test-key",
-  apiUrl: "https://fake-embeddings.test/embed",
-};
+const EMBEDDING_CONFIG: EmbeddingClassifierConfig = {};
 
 const FEED = {
   title: "Daily Links",

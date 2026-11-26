@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useAuth } from "@integrations/better-auth/provider";
+import { queryKeys } from "@lib/query/keys";
 import { READER_PREFERENCES_STORAGE_KEY } from "@lib/shell/keys";
 import { usePreferences } from "@modules/preferences/hooks/use-preferences";
 import {
@@ -13,10 +14,6 @@ import {
   updateReaderPreferences,
   type ReaderPreferences,
 } from "../lib/preferences";
-
-function readerPreferencesQueryKey(userId?: string) {
-  return ["me", "preferences", "reader", userId ?? "anonymous"] as const;
-}
 
 function readerPreferencesStorageKey(userId?: string) {
   return userId ? `${READER_PREFERENCES_STORAGE_KEY}:${userId}` : READER_PREFERENCES_STORAGE_KEY;
@@ -52,7 +49,7 @@ function writeCachedReaderPreferences(next: ReaderPreferences, userId?: string) 
 
 export function useReaderPreferences() {
   const { user } = useAuth();
-  const queryKey = readerPreferencesQueryKey(user?.id);
+  const queryKey = queryKeys.preferences.reader(user?.id);
   const preferencesStore = usePreferences({
     defaults: DEFAULT_READER_PREFERENCES,
     initialData: () => readCachedReaderPreferences(user?.id),

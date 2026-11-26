@@ -157,14 +157,17 @@ export function usePretext({
   label,
   font,
   lineHeight,
+  reservedWidth = 0,
 }: {
   label: string;
   font: string;
   lineHeight: number;
+  /** Width inside the container kept for siblings that follow the label, such as an icon. */
+  reservedWidth?: number;
 }) {
   const containerRef = useRef<HTMLSpanElement | null>(null);
   const preparedLabel = useMemo(() => preparePretextText(label, font), [font, label]);
-  const availableWidth = useObservedElementWidth(containerRef);
+  const availableWidth = useObservedElementWidth(containerRef) - reservedWidth;
 
   const fittedLabel = useMemo(
     () => fitPretextLabelToSingleLine(label, font, availableWidth, lineHeight, preparedLabel),

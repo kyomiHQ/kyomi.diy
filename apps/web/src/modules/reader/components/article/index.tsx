@@ -7,6 +7,7 @@ import {
   m,
   useReducedMotion,
   springTransition,
+  EASE_OUT_QUINT,
 } from "@kyomi/ui/lib/motion";
 import { Timestamp } from "@modules/articles/components/timestamp";
 import { Categories } from "@modules/articles/components/categories";
@@ -345,6 +346,7 @@ export function Article({
       <ExtractionFailedBanner toolbar={toolbar} />
 
       <div
+        aria-busy={toolbar.isTranslating || undefined}
         className="relative"
         lang={toolbar.displayReader.language ?? undefined}
         dir="auto"
@@ -352,13 +354,22 @@ export function Article({
         data-reader-inbox-body={hideInlineToolbar ? "" : undefined}
       >
         {shouldRenderArticleBody ? (
-          <ReaderContent
-            transformImageUrl={readerImageUrl}
-            reader={toolbar.displayReader}
-            openLinksInNewTab={toolbar.openLinksInNewTab}
-            showLinkPreviews={toolbar.showLinkPreviews}
-            layoutMode="fidelity"
-          />
+          <LazyMotion features={domAnimation}>
+            <m.div
+              key={toolbar.isTranslated ? "translated" : "source"}
+              initial={toolbar.isTranslated && !prefersReducedMotion ? { opacity: 0.65 } : false}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.18, ease: EASE_OUT_QUINT }}
+            >
+              <ReaderContent
+                transformImageUrl={readerImageUrl}
+                reader={toolbar.displayReader}
+                openLinksInNewTab={toolbar.openLinksInNewTab}
+                showLinkPreviews={toolbar.showLinkPreviews}
+                layoutMode="fidelity"
+              />
+            </m.div>
+          </LazyMotion>
         ) : null}
       </div>
     </article>

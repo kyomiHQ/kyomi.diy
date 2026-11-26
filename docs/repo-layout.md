@@ -14,8 +14,8 @@ The public landing page lives in `apps/www`. It uses SvelteKit and the CSS expor
 
 1. `apps/web` should contain route/view composition and UI wiring, not core domain rules.
 2. `apps/api` should contain transport/orchestration boundaries, not reusable business logic.
-3. `apps/ai-gateway` is the Cloudflare Worker in front of Workers AI: `/embed` for the article
-   classifier and `/chat` for the translation eval. It should contain only those HTTP contracts.
+3. `apps/ai-gateway` is the Cloudflare Worker in front of Workers AI: `/translate` for articles
+   and `/chat` for the translation eval. Embeddings run locally in `packages/ingest`.
 4. Reusable logic should be promoted into `packages/*` once consumed by multiple app modules.
 5. Workspace-wide TypeScript baselines live in `packages/tsconfig`.
 

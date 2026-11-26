@@ -5,7 +5,7 @@ import { ArrowShareRightIcon, BookmarkFilledIcon, BookmarkIcon } from "@kyomi/ui
 import { Toolbar as ToolbarRoot, ToolbarGroup } from "@kyomi/ui/components/toolbar";
 import { cn } from "@kyomi/ui/lib/utils";
 import type { AnchoredToolbarAction, ToolbarSide } from "@modules/articles/lib/types";
-import { ItemToolbarButton } from "./button";
+import { ItemToolbarButton, type ItemToolbarCorners } from "./button";
 import { ItemToolbarMenu } from "./menu";
 
 export type ItemToolbarProps = {
@@ -31,6 +31,7 @@ function stopToolbarPropagation(event: SyntheticEvent) {
 
 export function ItemToolbar({
   className,
+  corners,
   style,
   isSaved,
   onCopyLink,
@@ -39,7 +40,7 @@ export function ItemToolbar({
   onReportBrokenArticle,
   onShareArticle,
   onToggleSaved,
-}: ItemToolbarProps) {
+}: ItemToolbarProps & { corners: ItemToolbarCorners }) {
   return (
     <ToolbarRoot
       className={cn(INBOX_ITEM_TOOLBAR_BASE_CLASS, className)}
@@ -50,6 +51,7 @@ export function ItemToolbar({
     >
       <ToolbarGroup className="justify-end gap-1">
         <ItemToolbarButton
+          corners={corners}
           label={isSaved ? "Remove from read later" : "Read later"}
           active={isSaved}
           className={isSaved ? "text-mizu" : undefined}
@@ -67,11 +69,12 @@ export function ItemToolbar({
             <BookmarkIcon className={TOOLBAR_ICON_CLASS} />
           )}
         </ItemToolbarButton>
-        <ItemToolbarButton label="Copy link" copyFeedback onClick={onCopyLink} />
-        <ItemToolbarButton label="Share article" onClick={onShareArticle}>
+        <ItemToolbarButton corners={corners} label="Copy link" copyFeedback onClick={onCopyLink} />
+        <ItemToolbarButton corners={corners} label="Share article" onClick={onShareArticle}>
           <ArrowShareRightIcon className={TOOLBAR_ICON_CLASS} />
         </ItemToolbarButton>
         <ItemToolbarMenu
+          corners={corners}
           onHide={onHide}
           onOpenSource={onOpenSource}
           onReportBrokenArticle={onReportBrokenArticle}

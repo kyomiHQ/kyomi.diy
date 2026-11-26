@@ -1,5 +1,6 @@
 "use client";
 
+import { usePreferredLocale } from "@lib/locale";
 import { Link } from "@tanstack/react-router";
 import { PlusIcon, RssIcon } from "@kyomi/ui/icons/blode";
 import { useMemo } from "react";
@@ -42,6 +43,7 @@ function TopSourceRow({
   moveFeed: (feedId: string, folderId: string) => void;
   movingFeedId: string | null;
 }) {
+  const locale = usePreferredLocale();
   return (
     <Item shape="squircle" size="sm">
       <ItemTarget
@@ -74,7 +76,7 @@ function TopSourceRow({
           <ItemTitle>{feed.title}</ItemTitle>
           <ItemDescription>
             {formatViewedCount(feed.viewedItemCount)} · viewed{" "}
-            {formatRelativeTime(feed.lastViewedAt)}
+            <span lang={locale}>{formatRelativeTime(feed.lastViewedAt, locale)}</span>
           </ItemDescription>
         </ItemContent>
       </ItemTarget>
@@ -139,37 +141,39 @@ export function TopSources({
   );
   const visibleFeeds = feeds.slice(0, limit);
 
+  if (visibleFeeds.length === 0) {
+    return (
+      <SectionEmpty
+        title="No viewed sources"
+        description="Open a few posts to build this list."
+        icon={<RssIcon />}
+      />
+    );
+  }
+
   return (
     <RecapSection title="Top Sources">
-      {feeds.length === 0 ? (
-        <SectionEmpty
-          title="No viewed sources"
-          description="Open a few posts to build this list."
-          icon={<RssIcon />}
-        />
-      ) : (
-        <div className="space-y-2">
-          {visibleFeeds.map((feed) => {
-            const unsortedFolder = folderOptions.find((folder) => folder.label === "Unsorted");
-            const currentFolderId =
-              feed.folderId ?? unsortedFolder?.value ?? folderOptions[0]?.value ?? "";
-            const currentFolder = folderOptions.find((folder) => folder.value === currentFolderId);
-            return (
-              <TopSourceRow
-                key={feed.feedId}
-                currentFolder={currentFolder}
-                currentFolderId={currentFolderId}
-                feed={feed}
-                folderOptions={folderOptions}
-                followFeed={followFeed}
-                isFollowingFeed={isFollowingFeed}
-                moveFeed={moveFeed}
-                movingFeedId={movingFeedId}
-              />
-            );
-          })}
-        </div>
-      )}
+      <div className="space-y-2">
+        {visibleFeeds.map((feed) => {
+          const unsortedFolder = folderOptions.find((folder) => folder.label === "Unsorted");
+          const currentFolderId =
+            feed.folderId ?? unsortedFolder?.value ?? folderOptions[0]?.value ?? "";
+          const currentFolder = folderOptions.find((folder) => folder.value === currentFolderId);
+          return (
+            <TopSourceRow
+              key={feed.feedId}
+              currentFolder={currentFolder}
+              currentFolderId={currentFolderId}
+              feed={feed}
+              folderOptions={folderOptions}
+              followFeed={followFeed}
+              isFollowingFeed={isFollowingFeed}
+              moveFeed={moveFeed}
+              movingFeedId={movingFeedId}
+            />
+          );
+        })}
+      </div>
     </RecapSection>
   );
 }

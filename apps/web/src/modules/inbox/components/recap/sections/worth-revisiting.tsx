@@ -1,5 +1,6 @@
 "use client";
 
+import { usePreferredLocale } from "@lib/locale";
 import { Link } from "@tanstack/react-router";
 import { BookmarkFilledIcon, ExternalLinkIcon } from "@kyomi/ui/icons/blode";
 import {
@@ -29,81 +30,84 @@ export function WorthRevisiting({
   onUnsave: (itemId: string) => void;
   unsavingItemId: string | null;
 }) {
-  const visibleItems = items.slice(0, limit);
+  const locale = usePreferredLocale();
+
+  if (items.length === 0) {
+    return (
+      <SectionEmpty
+        title="Nothing to revisit yet"
+        description="Older saved posts and clips will surface here after they've been waiting a while."
+        icon={<BookmarkFilledIcon />}
+      />
+    );
+  }
 
   return (
     <RecapSection title="Worth revisiting">
-      {items.length === 0 ? (
-        <SectionEmpty
-          title="Nothing to revisit yet"
-          description="Older saved posts and clips will surface here after they've been waiting a while."
-          icon={<BookmarkFilledIcon />}
-        />
-      ) : (
-        <div className="space-y-3">
-          {visibleItems.map((item) => (
-            <Item key={item.id} size="sm">
-              <ItemContent>
-                <ItemTarget
-                  aria-label={item.title}
-                  render={
-                    <Link
-                      params={{ article: buildInboxItemSlug(item) }}
-                      search={(prev: InboxSearch) => ({
-                        ...prev,
-                        itemId: undefined,
-                      })}
-                      to="/inbox/$article"
-                    />
-                  }
+      <div className="space-y-3">
+        {items.slice(0, limit).map((item) => (
+          <Item key={item.id} size="sm">
+            <ItemContent>
+              <ItemTarget
+                aria-label={item.title}
+                render={
+                  <Link
+                    params={{ article: buildInboxItemSlug(item) }}
+                    search={(prev: InboxSearch) => ({
+                      ...prev,
+                      itemId: undefined,
+                    })}
+                    to="/inbox/$article"
+                  />
+                }
+              >
+                <ItemTitle>{item.title}</ItemTitle>
+              </ItemTarget>
+              <div className="mt-1 flex min-w-0 items-center gap-1">
+                <ItemDescription className="min-w-0 flex-1">
+                  {item.feedTitle} · saved{" "}
+                  <span lang={locale}>{formatRelativeTime(item.savedAt, locale)}</span>
+                </ItemDescription>
+                <ItemActions
+                  className="text-muted-foreground"
+                  reveal
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  <ItemTitle>{item.title}</ItemTitle>
-                </ItemTarget>
-                <div className="mt-1 flex min-w-0 items-center gap-1">
-                  <ItemDescription className="min-w-0 flex-1">
-                    {item.feedTitle} · saved {formatRelativeTime(item.savedAt)}
-                  </ItemDescription>
-                  <ItemActions
-                    className="text-muted-foreground"
-                    reveal
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <RailTooltip label="Open original">
-                      <Button
-                        aria-label={`Open original for ${item.title}`}
-                        render={
-                          <a
-                            aria-label={`Open original for ${item.title}`}
-                            href={normalizeSafeHttpUrl(item.link) ?? undefined}
-                            rel="noreferrer"
-                            target="_blank"
-                          />
-                        }
-                        size="icon-xs"
-                        variant="ghost"
-                      >
-                        <ExternalLinkIcon />
-                      </Button>
-                    </RailTooltip>
-                    <RailTooltip label="Unsave">
-                      <Button
-                        aria-label={`Unsave ${item.title}`}
-                        className="text-mizu"
-                        loading={unsavingItemId === item.id}
-                        size="icon-xs"
-                        variant="ghost"
-                        onClick={() => onUnsave(item.id)}
-                      >
-                        <BookmarkFilledIcon />
-                      </Button>
-                    </RailTooltip>
-                  </ItemActions>
-                </div>
-              </ItemContent>
-            </Item>
-          ))}
-        </div>
-      )}
+                  <RailTooltip label="Open original">
+                    <Button
+                      aria-label={`Open original for ${item.title}`}
+                      render={
+                        <a
+                          aria-label={`Open original for ${item.title}`}
+                          href={normalizeSafeHttpUrl(item.link) ?? undefined}
+                          rel="noreferrer"
+                          target="_blank"
+                        />
+                      }
+                      size="icon-xs"
+                      variant="ghost"
+                    >
+                      <ExternalLinkIcon />
+                    </Button>
+                  </RailTooltip>
+                  <RailTooltip label="Unsave">
+                    <Button
+                      aria-label={`Unsave ${item.title}`}
+                      className="text-mizu"
+                      loading={unsavingItemId === item.id}
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => onUnsave(item.id)}
+                    >
+                      <BookmarkFilledIcon />
+                    </Button>
+                  </RailTooltip>
+                </ItemActions>
+              </div>
+            </ItemContent>
+          </Item>
+        ))}
+      </div>
     </RecapSection>
   );
 }

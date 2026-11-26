@@ -11,11 +11,6 @@ export class InvalidArguments extends Data.TaggedError("InvalidArguments")<{
   readonly message: string;
 }> {}
 
-/** An embeddings classifier was requested but the Cloudflare Worker values are not set. */
-export class EmbeddingsNotConfigured extends Data.TaggedError("EmbeddingsNotConfigured")<{
-  readonly message: string;
-}> {}
-
 /**
  * Some of a feed's items could not be embedded. The feed is recorded as failed (so
  * `--retry-failed` picks it up) instead of writing the missing items as abstentions.

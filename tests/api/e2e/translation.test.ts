@@ -67,10 +67,9 @@ test.skipIf(!process.env.ONBOARDING_TEST_DATABASE_URL)(
       expect(
         (
           await request("/me/onboarding", "PATCH", {
-            name: "Reader",
             username: "u" + id.slice(0, 8),
             language: "fr-ca",
-            categories: ["Technology"],
+            categories: ["Technology", "Design & UX", "Science & Research"],
             bundleIds: ["technology"],
           })
         ).status,

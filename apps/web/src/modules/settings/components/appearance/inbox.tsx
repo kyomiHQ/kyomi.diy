@@ -1,5 +1,6 @@
 "use client";
 
+import { usePreferredLocale } from "@lib/locale";
 import { PreviewRadioGroup, type PreviewRadioItem } from "@kyomi/ui/components/preview-radio-group";
 import { SliderComfortable } from "@kyomi/ui/components/slider";
 import {
@@ -153,6 +154,7 @@ function TimestampOptions({
   setPreferences: (next: Partial<InboxPreferences>) => void;
 }) {
   const reducedMotion = useReducedMotion();
+  const locale = usePreferredLocale();
   const display = preferences.inboxTimestampDisplay;
   const hourCycle = preferences.inboxTimestampHourCycle;
   // Two hours back, so every format has something to show.
@@ -233,7 +235,10 @@ function TimestampOptions({
           custom={exampleDirection}
           {...motionProps}
         >
-          Example: {formatInboxTimestamp(sample, display, hourCycle)}
+          Example:{" "}
+          <span lang={display === "iso" ? undefined : locale}>
+            {formatInboxTimestamp(sample, display, hourCycle, locale)}
+          </span>
         </m.p>
       </AnimatePresence>
     </LazyMotion>

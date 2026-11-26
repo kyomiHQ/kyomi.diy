@@ -20,29 +20,22 @@ export const TOAST_CONTENT_CLASS_NAME =
 
 /**
  * One line: status icon, title, then an end slot for a count (`4/10`) or the toast's action
- * (undo, retry). Both are pushed to the end edge; nothing wraps, a long title truncates. The count
+ * (undo, retry). Both are pushed to the end edge. Callers provide short titles. The count
  * is tabular and morphs by place value on the ring's own duration and curve, so a step up or down
  * moves the digits and the ring together and the line never shifts under it.
  */
 export function ToastRow({
   toast,
-  maxMorphChars,
 }: {
   toast: ToastObject<Record<string, unknown>>;
-  maxMorphChars?: number;
 }): React.ReactElement {
   const progress = getToastProgress(toast);
 
   return (
     <>
       <ToastStatusIcon toast={toast} />
-      <ToastTitle
-        className="min-w-0 flex-1 truncate font-medium"
-        data-slot="toast-title"
-        maxMorphChars={maxMorphChars}
-        toast={toast}
-      />
-      {progress ? (
+      <ToastTitle className="min-w-0 flex-1 font-medium" data-slot="toast-title" toast={toast} />
+      {progress && progress.showCount !== false ? (
         <span
           className="inline-flex shrink-0 text-muted-foreground tabular-nums"
           data-slot="toast-count"

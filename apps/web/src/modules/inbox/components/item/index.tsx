@@ -21,6 +21,10 @@ const ITEM_GUTTER_CLASS = "px-0";
 const ITEM_SEPARATOR_CLASS = "left-0 right-0";
 const ITEM_HOVER_RADIUS_PX = 20;
 const ITEM_HOVER_CORNER_SMOOTHING = 0.6;
+const ITEM_FOOTER_CORNERS = {
+  cornerRadius: "30%",
+  cornerSmoothing: ITEM_HOVER_CORNER_SMOOTHING,
+} as const;
 
 export const Item = memo(function Item({
   item,
@@ -168,10 +172,13 @@ export const Item = memo(function Item({
           "flex w-full min-w-0 items-center justify-end gap-3 p-0",
           ITEM_GUTTER_CLASS,
           sectionClassNames.footer,
+          isCompact
+            ? "[--inbox-footer-corner:var(--corner-lg)]"
+            : "[--inbox-footer-corner:var(--corner-sm)]",
         )}
       >
         <ItemMeta item={item} metaFontSizePx={metaFontSizePx} />
-        <ItemInlineToolbar item={item} />
+        <ItemInlineToolbar item={item} corners={ITEM_FOOTER_CORNERS} />
       </CardFooter>
     </Card>
   );
@@ -228,7 +235,7 @@ function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: n
     <div className="me-auto flex min-w-0 items-center gap-1.5">
       {item.isSaved ? (
         <span
-          className="min-w-0 shrink-0 rounded-full bg-mizu/8 px-2 py-0.5 font-medium text-mizu-foreground dark:bg-mizu/16"
+          className="min-w-0 shrink-0 rounded-(--inbox-footer-corner) bg-mizu/8 px-2 py-0.5 font-medium text-mizu-foreground [corner-shape:squircle] dark:bg-mizu/16"
           style={{ fontSize: `${metaFontSizePx}px` }}
         >
           Saved
@@ -241,7 +248,7 @@ function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: n
               ? continueLabel
               : `Continue reading, ${continueLabel}`
           }
-          className="h-auto min-w-0 shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground/85 sm:h-auto"
+          className="h-auto min-w-0 shrink-0 rounded-(--inbox-footer-corner) bg-muted px-2 py-0.5 text-muted-foreground/85 [corner-shape:squircle] sm:h-auto"
           size="default"
           style={{ fontSize: `${metaFontSizePx}px` }}
           variant="secondary"
@@ -249,7 +256,11 @@ function ItemMeta({ item, metaFontSizePx }: { item: InboxItem; metaFontSizePx: n
           {continueLabel}
         </Badge>
       ) : null}
-      <Categories categories={item.categories} fontSizePx={metaFontSizePx} />
+      <Categories
+        categories={item.categories}
+        corners={ITEM_FOOTER_CORNERS}
+        fontSizePx={metaFontSizePx}
+      />
     </div>
   );
 }

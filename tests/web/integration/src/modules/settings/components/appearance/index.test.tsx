@@ -140,6 +140,17 @@ describe("AppearancePagePanel", () => {
     rememberPosition = true;
   });
 
+  test("saves the preferred language from the shared native select", () => {
+    render(<AppearancePagePanel />);
+    const select = screen.getByRole("combobox", { name: "Preferred language" });
+    expect(select.tagName).toBe("SELECT");
+    expect(select.getAttribute("data-slot")).toBe("native-select");
+
+    fireEvent.change(select, { target: { value: "fr" } });
+
+    expect(setReaderPreferencesMock).toHaveBeenCalledWith({ language: "fr" });
+  });
+
   test("toggles remembering the reading position through the reader preferences", () => {
     render(<AppearancePagePanel />);
 

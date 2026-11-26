@@ -9,7 +9,7 @@ import {
 import { fakeEmbeddings, recordingDb } from "../fakes";
 
 const INPUT = {
-  config: { apiKey: "test-key", apiUrl: "https://fake-embeddings.test/embed" },
+  config: {},
   labels: CATEGORY_MODEL_LABELS,
   version: "test-head",
   options: CATEGORY_MODEL_TRAINING_OPTIONS,

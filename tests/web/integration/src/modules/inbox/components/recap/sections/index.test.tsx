@@ -1,14 +1,40 @@
 // @vitest-environment jsdom
 
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import {
   RECAP_SUMMARY_LAYOUT_CLASS,
   RECAP_SUMMARY_SECTION_CLASS,
   RecapSkeleton,
 } from "@modules/inbox/components/recap/sections";
+import { WorthRevisiting } from "@modules/inbox/components/recap/sections/worth-revisiting";
+import { TopSources } from "@modules/inbox/components/recap/sections/top-sources";
 
 describe("recap summary layout", () => {
+  test("shows the top sources empty state without a section heading", () => {
+    render(
+      <TopSources
+        feeds={[]}
+        limit={4}
+        folders={[]}
+        followFeed={() => {}}
+        isFollowingFeed={() => false}
+        moveFeed={() => {}}
+        movingFeedId={null}
+      />,
+    );
+
+    expect(screen.getByText("No viewed sources")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Top Sources" })).toBeNull();
+  });
+
+  test("shows the revisit empty state without a section heading", () => {
+    render(<WorthRevisiting items={[]} limit={3} onUnsave={() => {}} unsavingItemId={null} />);
+
+    expect(screen.getByText("Nothing to revisit yet")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Worth revisiting" })).toBeNull();
+  });
+
   test("keeps loading and populated sections on one stable full-width contract", () => {
     const { container } = render(<RecapSkeleton />);
     const layout = container.firstElementChild;
@@ -26,5 +52,7 @@ describe("recap summary layout", () => {
     expect(sections).toHaveLength(3);
     expect(sections.every((section) => section.className.includes("w-full"))).toBe(true);
     expect(new Set(sections.map((section) => section.className)).size).toBe(1);
+    expect(sections[1]?.children).toHaveLength(1);
+    expect(sections[2]?.children).toHaveLength(1);
   });
 });

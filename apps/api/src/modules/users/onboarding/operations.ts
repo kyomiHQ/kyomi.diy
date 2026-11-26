@@ -5,6 +5,7 @@ import { Db, type Database } from "@adapters/db/service";
 import { CurrentUser } from "@shared/effect/request";
 import { currentDate } from "@shared/effect/clock";
 import { inTransaction, subscribeUserToFeed } from "@modules/feeds/subscription/persistence";
+import { getOrCreateFolderByName } from "@modules/folders/operations";
 import { Conflict } from "@shared/effect/errors";
 import { starterBundles as bundles } from "@kyomi/ingest/ingestion/starter-bundles";
 import { form, handle, invalidForm, patch } from "./schemas";
@@ -112,29 +113,34 @@ export const save = Effect.fn("onboarding.save")(function* (
         target: userPreferences.userId,
         set: { language: validated.language, updatedAt: now },
       });
-    const selected = bundles
-      .filter((bundle) => validated.bundleIds.includes(bundle.id))
-      .flatMap((bundle) => [...bundle.feeds]);
+    const selected = bundles.filter((bundle) => validated.bundleIds.includes(bundle.id));
     await tx
       .insert(feeds)
       .values(
-        selected.map((feed) => ({
-          ...feed,
-          canonicalFeedUrl: feed.url,
-          id: crypto.randomUUID(),
-        })),
+        selected.flatMap((bundle) =>
+          bundle.feeds.map((feed) => ({
+            ...feed,
+            canonicalFeedUrl: feed.url,
+            id: crypto.randomUUID(),
+          })),
+        ),
       )
       .onConflictDoNothing({ target: feeds.url });
-    const rows = await tx
-      .select({ id: feeds.id })
-      .from(feeds)
-      .where(
-        inArray(
-          feeds.url,
-          selected.map((feed) => feed.url),
-        ),
-      );
-    for (const feed of rows) await subscribeUserToFeed(tx, userId, feed.id, now);
+    for (const bundle of selected) {
+      const folder = await getOrCreateFolderByName(tx, userId, bundle.title);
+      const rows = await tx
+        .select({ id: feeds.id })
+        .from(feeds)
+        .where(
+          inArray(
+            feeds.url,
+            bundle.feeds.map((feed) => feed.url),
+          ),
+        );
+      for (const feed of rows) {
+        await subscribeUserToFeed(tx, userId, feed.id, now, { folderId: folder.id });
+      }
+    }
     return state(draft, completedAt);
   }).pipe(
     Effect.mapError((error) => {

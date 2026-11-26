@@ -105,13 +105,13 @@ export function useFollowTopSourceMutation(queryClient: QueryClient) {
 
       return followed;
     },
-    onSuccess: async (feed) => {
+    onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.inbox.recap }),
         invalidateRecapSurface(queryClient),
       ]);
       toastManager.add({
-        title: `Followed ${feed.title}`,
+        title: "Feed followed",
         type: "success",
       });
     },
@@ -159,7 +159,7 @@ export function useRemoveRecapFeedsMutation(queryClient: QueryClient) {
 
       if (shouldShowAnchoredToast && feedName && toastAnchor) {
         anchoredToastManager.add({
-          title: `Unfollowed ${feedName}`,
+          title: "Feed unfollowed",
           type: "success",
           timeout: 1800,
           data: { tooltipStyle: true },

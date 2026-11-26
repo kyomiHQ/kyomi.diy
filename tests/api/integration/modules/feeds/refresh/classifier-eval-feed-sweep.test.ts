@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, test } from "bun:test";
+import { describe, test } from "bun:test";
 import {
   MAX_CLASSIFIER_LABELS,
   MISCELLANEOUS_CATEGORY_LABEL,
@@ -8,7 +8,6 @@ import {
   DEFAULT_FEED_SELECTION_RULE,
   type CategoryScore,
 } from "@kyomi/ingest";
-import { cachedEmbeddingsFetch, embeddingsCacheFile } from "./embedding-cache";
 import { round3 } from "./classifier-eval-scoring";
 import {
   describeRule,
@@ -16,7 +15,6 @@ import {
   readJsonl,
   SWEEP_ENABLED,
   sweepConfig,
-  sweepUpstream,
 } from "./classifier-eval-sweep-setup";
 
 /**
@@ -51,8 +49,6 @@ type FeedRow = {
 };
 
 type FeedMethod = [string, (feed: FeedRow) => CategoryScore[]];
-
-const originalFetch = globalThis.fetch;
 
 /** Each category's mean score over several score lists, best first. */
 function meanScores(lists: ReadonlyArray<readonly CategoryScore[]>): CategoryScore[] {
@@ -190,20 +186,8 @@ function reportRules(feeds: readonly FeedRow[], score: FeedMethod[1]): void {
   }
 }
 
-beforeAll(() => {
-  globalThis.fetch = cachedEmbeddingsFetch({
-    cacheFile: embeddingsCacheFile("feeds"),
-    upstream: sweepUpstream,
-    realFetch: originalFetch,
-  });
-});
-
-afterAll(() => {
-  globalThis.fetch = originalFetch;
-});
-
 describe.skipIf(!SWEEP_ENABLED || !process.env.CLASSIFIER_SWEEP_FEEDS)(
-  "embedding classifier feed rule sweep (BGE-M3)",
+  "embedding classifier feed rule sweep (local static embeddings)",
   () => {
     test("compares feed scoring and sweeps the feed rule against publisher-declared categories", async () => {
       const feeds = readJsonl<FeedRow>(process.env.CLASSIFIER_SWEEP_FEEDS!);

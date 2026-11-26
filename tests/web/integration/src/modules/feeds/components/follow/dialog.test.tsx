@@ -252,7 +252,7 @@ describe("SourcesDialog OPML import", () => {
       },
     ];
     expect(toastOptions.loading.timeout).toBe(0);
-    expect(toastOptions.success(finalStatus).title).toBe("Imported 2 of 2 feeds");
+    expect(toastOptions.success(finalStatus).title).toBe("Imported 2/2 feeds");
     expect(toastOptions.success(finalStatus).timeout).toBe(3000);
     expect(toastOptions.error(new Error("failed")).timeout).toBe(7000);
     expect(toastOptions.error(new Error("failed"))).not.toHaveProperty("description");
@@ -318,7 +318,7 @@ describe("SourcesDialog feed follow", () => {
     });
     expect(mocks.anchoredToastAdd).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Following!",
+        title: "Feed followed",
         positionerProps: expect.objectContaining({
           anchor: action,
           side: "top",

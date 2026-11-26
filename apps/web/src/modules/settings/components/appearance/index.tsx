@@ -1,6 +1,7 @@
 "use client";
 
 import { BrushIcon } from "@kyomi/ui/icons/blode";
+import { LanguageSettings } from "./language";
 import { Button } from "@kyomi/ui/components/button";
 import { SidebarMenuButton, SidebarMenuItem } from "@kyomi/ui/components/sidebar";
 import { InboxAppearanceSettings } from "./inbox";
@@ -61,6 +62,10 @@ export function AppearancePagePanel() {
         <ThemeSwitcher />
       </section>
 
+      <LanguageSettings
+        language={readerPreferences.language ?? "en"}
+        onLanguageChange={(language) => setReaderPreferences({ language })}
+      />
       <InboxAppearanceSettings
         preferences={inboxPreferences}
         setPreferences={setInboxPreferences}

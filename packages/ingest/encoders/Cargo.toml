@@ -1,0 +1,15 @@
+[package]
+name = "kyomi-encoders"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+encoders = { version = "=3.1.0", features = ["bekko-static-v1-slim-100k", "mrl-512", "int8"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

@@ -48,6 +48,25 @@ operator scripts live in `src/app/boot` because they write through api adapters.
 - tests swap Layers (`tests/api/integration/support/layers.ts`) instead of `mock.module` or patching `fetch`; tests that need no services run with `SKIP_ENV_VALIDATION=true bunx --no-install dotenvx run -f ../../docker/.env.example -f .env.example -- bun test ../../tests/api/integration/<path>` from `apps/api`.
 - shared ingestion, queue contracts, and sanitization live in `@kyomi/ingest`. this app owns the executable processes that drive them.
 
+### Local embedding classification
+
+Feed refresh, extraction, training, and category backfill use the same local encoder through
+`@kyomi/ingest`; no Cloudflare embedding URL or token is required. The read path selects rows for
+the active encoder, trained category head, and selection thresholds, with keyword labels as the
+fallback. `CATEGORY_CLASSIFIER_READ_MODE=keyword` remains available for the keyword-only read path.
+
+A change to the encoder, dimensions, or quantization needs new training vectors, a retrained head,
+and calibrated thresholds. Matching vector dimensions alone does not make models compatible.
+After deploying a new head, run `bun run --cwd apps/api category:backfill --classifier embedding
+--all` to inspect a dry run, then repeat with `--apply` to replace classifier assignments. Review
+`category:report` and `category:audit` after the backfill. Explicit publisher and user labels remain
+separate from classifier assignments.
+
+The AI gateway still serves article translation and evaluation chat. Translation keeps its own
+`TRANSLATIONS_TOKEN`. Evaluation chat uses the separate `CHAT_TOKEN` Worker secret and
+`CLOUDFLARE_CHAT_URL` / `CLOUDFLARE_CHAT_TOKEN` in the evaluation environment. Provision that secret
+before deploying the gateway change; the old embedding token is no longer accepted by any route.
+
 ### Signup onboarding
 
 Use the current Better Auth session for all onboarding requests. New accounts start pending. Migration 0045 marks accounts that already exist as complete.
@@ -61,7 +80,7 @@ The HTTP journey in `tests/api/e2e/onboarding.test.ts` uses real auth sessions. 
 
 ### Reader translation
 
-Onboarding completion copies the canonical BCP 47 language tag into the account's reader preferences in the same transaction. Existing users can change it in web Settings → Appearance → Reading or through `PATCH /api/v1/me/preferences`. Migration 0046 carries forward languages from completed onboarding records. Accounts without a selection default to English.
+Onboarding completion copies the canonical BCP 47 language tag into the account's preferences in the same transaction. The web app uses it for date and time formatting and as the default target for article translation. Existing users can change it in web Settings → Appearance → Preferred language or through `PATCH /api/v1/me/preferences`. Migration 0046 carries forward languages from completed onboarding records. Accounts without a selection default to English.
 
 An authenticated `POST /api/v1/articles/:articleId/translate` accepts an optional reader mode, source language and target language. The API translates the stored feed article body. It derives the source from article or feed metadata and uses the model's English default when both are missing. Region and script stay in the user's preference. The provider receives its supported base code. Clips, unsupported languages and bodies longer than 6,000 characters are outside this provider contract.
 

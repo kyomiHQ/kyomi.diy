@@ -1,6 +1,6 @@
 {
   "extends": "../tsconfig/node.json",
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "encoders/build.ts"],
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "noEmit": true

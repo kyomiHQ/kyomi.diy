@@ -42,7 +42,7 @@ function Toasts({ position }: { position: ToastPosition }): React.ReactElement {
     <Toast.Portal data-slot="toast-portal">
       <Toast.Viewport
         className={cn(
-          "fixed mx-auto flex w-[calc(100%-var(--toast-inset)*2)] max-w-90 [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
+          "fixed mx-auto flex w-[calc(100%-var(--toast-inset)*2)] max-w-70 [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
           // Vertical positioning
           "data-[position*=top]:top-(--toast-inset)",
           "data-[position*=bottom]:bottom-[max(var(--toast-inset),env(safe-area-inset-bottom,0px))]",

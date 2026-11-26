@@ -33,13 +33,13 @@ export function createSquircleStyle(options: SquircleStyleOptions): CSSPropertie
 }
 
 export function useSquircle<T extends HTMLElement = HTMLElement>(
-  cornerRadius: number,
+  cornerRadius: number | `${number}%`,
   cornerSmoothing = 1,
 ) {
   const ref = useRef<T | null>(null);
   const [shape, setShape] = useState<{ path: string | null; style: CSSProperties }>({
     path: null,
-    style: { borderRadius: cornerRadius },
+    style: typeof cornerRadius === "number" ? { borderRadius: cornerRadius } : {},
   });
 
   useEffect(() => {
@@ -52,7 +52,11 @@ export function useSquircle<T extends HTMLElement = HTMLElement>(
         const options = {
           width: offsetWidth,
           height: offsetHeight,
-          cornerRadius,
+          // One radius for both axes, scaled from the shorter side.
+          cornerRadius:
+            typeof cornerRadius === "number"
+              ? cornerRadius
+              : (Math.min(offsetWidth, offsetHeight) * Number.parseFloat(cornerRadius)) / 100,
           cornerSmoothing,
         };
         setShape({ path: createSquirclePath(options), style: createSquircleStyle(options) });

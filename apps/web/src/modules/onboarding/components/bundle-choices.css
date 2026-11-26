@@ -42,32 +42,37 @@
   opacity: 1;
 }
 
+.bundle-source-name,
+.bundle-summary {
+  transition: opacity 80ms var(--ease-out-quint);
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  [data-bundle] {
+    --bundle-preview-duration: 140ms;
+    --bundle-preview-easing: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  [data-bundle][data-preview-open] {
+    --bundle-preview-duration: 180ms;
+  }
+
   .bundle-sources {
-    transition: block-size 130ms var(--ease-out-quint);
+    transition: block-size var(--bundle-preview-duration) var(--bundle-preview-easing);
   }
 
   .bundle-source-icon {
     transition:
-      translate 130ms var(--ease-out-quint),
-      rotate 130ms var(--ease-out-quint);
-  }
-
-  :is(.bundle-source-name, .bundle-summary) {
-    transition: opacity 75ms var(--ease-out-quint);
-  }
-
-  [data-preview-open] > .bundle-sources,
-  [data-preview-open] .bundle-source-icon {
-    transition-duration: 180ms;
+      translate var(--bundle-preview-duration) var(--bundle-preview-easing),
+      rotate var(--bundle-preview-duration) var(--bundle-preview-easing);
   }
 
   [data-preview-open] :is(.bundle-source-name, .bundle-summary) {
-    transition-duration: 100ms;
-    transition-delay: 35ms;
+    transition-duration: 120ms;
   }
 
   [data-preview-open] .bundle-summary {
-    transition-delay: 50ms;
+    /* Give the favicon stack time to clear the trailing text. */
+    transition-delay: 40ms;
   }
 }

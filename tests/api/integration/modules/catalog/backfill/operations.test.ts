@@ -7,11 +7,6 @@ import { UpstreamError } from "@shared/effect/errors";
 import { recordingLogger, testConfig } from "@api-tests/support/layers";
 import { fakeEmbeddings, recordingDb } from "../fakes";
 
-const EMBEDDINGS_ENV = {
-  CLOUDFLARE_EMBEDDINGS_URL: "https://fake-embeddings.test/embed",
-  CLOUDFLARE_EMBEDDINGS_TOKEN: "test-token",
-};
-
 const feed = (id: string, overrides: Record<string, unknown> = {}) => ({
   id,
   title: "Airbnb Engineering",
@@ -121,12 +116,7 @@ describe("runCategoryBackfill", () => {
   test("a feed failing under the embedding classifier ends the run unless --all", async () => {
     const db = database({ feeds: [[feed("feed-1")]], items: [item("item-1", "feed-1")] });
 
-    const { exit, logger } = run(
-      ["--classifier", "embedding"],
-      db,
-      fakeEmbeddings(),
-      EMBEDDINGS_ENV,
-    );
+    const { exit, logger } = run(["--classifier", "embedding"], db, fakeEmbeddings());
 
     const outcome = await exit();
     expect(outcome._tag).toBe("Failure");
@@ -157,7 +147,6 @@ describe("runCategoryBackfill", () => {
       ["--all", "--apply", "--classifier", "embedding"],
       db,
       embeddings,
-      EMBEDDINGS_ENV,
     ).result();
 
     expect(stats).toMatchObject({
@@ -182,7 +171,6 @@ describe("runCategoryBackfill", () => {
       ["--all", "--feed-id", "feed-1", "--apply", "--classifier", "embedding"],
       db,
       fakeEmbeddings(),
-      EMBEDDINGS_ENV,
     ).result();
 
     expect(stats).toMatchObject({
@@ -196,10 +184,10 @@ describe("runCategoryBackfill", () => {
     ]);
   });
 
-  test("the embedding classifier needs the Worker configured", async () => {
-    const outcome = await run(["--classifier", "embedding"], database()).exit();
-
-    expect(JSON.stringify(outcome)).toContain("EmbeddingsNotConfigured");
+  test("the local embedding classifier runs without provider credentials", async () => {
+    const stats = await run(["--classifier", "embedding"], database()).result();
+    expect(stats.classifierMethod).toBe("embedding");
+    expect(stats.feedsScanned).toBe(0);
   });
 
   test("--normalize-existing rewrites mapped labels and drops unmapped assignments", async () => {

@@ -61,6 +61,12 @@ function next() {
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 }
 
+async function submitInvalidStep(label = "Continue") {
+  const button = screen.getByRole<HTMLButtonElement>("button", { name: label });
+  await waitFor(() => expect(button.disabled).toBe(true));
+  fireEvent.submit(button.form!);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   saved = initial;
@@ -89,7 +95,7 @@ test("bounds deep links to username, reports field errors, and resumes the authe
   expect(username.previousElementSibling?.textContent).toBe("\u0040");
   expect(screen.queryByRole("textbox", { name: "Name", exact: true })).toBeNull();
   fireEvent.change(username, { target: { value: "@@ada" } });
-  next();
+  await submitInvalidStep();
   expect(screen.getByRole("alert").textContent).toContain("Use 3–30");
   expect(saveOnboardingStep).not.toHaveBeenCalled();
   vi.mocked(saveOnboardingStep).mockRejectedValueOnce(new HttpStatusError(409, "Taken"));
@@ -119,26 +125,26 @@ test("automatically opens the inbox after validating and saving the final bundle
   fireEvent.click(technology);
   fireEvent.click(screen.getByRole("button", { name: "Design & UX" }));
   expect(technology.form?.dataset.valid).toBe("false");
-  next();
+  await submitInvalidStep();
   expect(screen.getByRole("alert").textContent).toBe("Select 3 interests to continue.");
   fireEvent.click(screen.getByRole("button", { name: "Science & Research" }));
   expect(technology.form?.dataset.valid).toBe("true");
   expect(screen.getByRole<HTMLButtonElement>("button", { name: "Sports" }).disabled).toBe(true);
   next();
-  const language = await screen.findByRole("combobox", { name: "Reading language" });
+  const language = await screen.findByRole("combobox", { name: "Preferred language" });
   expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
     "Select a language",
     ...languages.map(({ name }) => name),
   ]);
-  next();
+  await submitInvalidStep();
   expect(screen.getByRole("alert").textContent).toBe("Choose a language.");
   fireEvent.change(language, { target: { value: "fr" } });
   next();
   const bundle = await screen.findByRole("button", {
-    name: "Climate & environment",
-    description: /Climate science & policy.*Carbon Brief/,
+    name: "Technology",
+    description: /Software & digital rights.*Ars Technica/,
   });
-  fireEvent.click(screen.getByRole("button", { name: "Finish setup" }));
+  await submitInvalidStep("Finish setup");
   expect(screen.getByRole("alert").textContent).toBe("Choose at least one starter bundle.");
   expect(bundle.parentElement?.querySelectorAll('img[src^="/api/favicon?"]')).toHaveLength(4);
   fireEvent.click(bundle);

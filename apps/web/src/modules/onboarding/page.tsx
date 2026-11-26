@@ -1,5 +1,4 @@
 import {
-  use,
   useEffect,
   useMemo,
   useRef,
@@ -12,12 +11,12 @@ import { Progress, ProgressIndicator, ProgressTrack } from "@kyomi/ui/components
 import { TextMorph } from "@kyomi/ui/components/text-morph";
 import { useMediaQuery } from "@kyomi/ui/hooks/use-media-query";
 import { cn } from "@kyomi/ui/lib/utils";
+import { recommendStarterBundles } from "@kyomi/ingest/ingestion/starter-bundles";
 import { modelLanguage } from "@kyomi/reader/schemas/translation";
 import { getErrorStatus } from "@lib/status";
 import { AccountHeader } from "@modules/auth/components/account-header";
 import { BundleChoices } from "./components/bundle-choices";
 import { OnboardingField } from "./components/fields";
-import { InboxArrivalTransition } from "./lib/arrival-transition";
 import { getOnboarding, saveOnboardingStep } from "./lib/api";
 import {
   requiredInterests,
@@ -42,7 +41,7 @@ const steps = {
   },
   language: {
     title: "Preferred language",
-    description: "Used for article translations. You can change this later.",
+    description: "Sets your date formats and translation language. You can change this later.",
   },
   bundleIds: {
     title: "Add some starter feeds",
@@ -69,7 +68,7 @@ function OnboardingLayout({ children, onBack }: PropsWithChildren<{ onBack?: () 
   return (
     <main className="relative grid min-h-dvh items-start justify-items-center px-6 py-30 sm:items-center sm:py-32">
       <AccountHeader onBack={onBack} />
-      <section className="w-full max-w-lg">{children}</section>
+      <section className="w-full min-w-0 max-w-lg">{children}</section>
     </main>
   );
 }
@@ -83,6 +82,7 @@ export function OnboardingPage({
 }: OnboardingPageProps) {
   const [session, setSession] = useState<OnboardingState>(initialState);
   const [saving, setSaving] = useState(false);
+  const [valid, setValid] = useState(false);
   const [issue, setIssue] = useState<{ step: OnboardingStep; message: string }>();
   const submitting = useRef(false);
   const submitButton = useRef<HTMLButtonElement>(null);
@@ -90,13 +90,6 @@ export function OnboardingPage({
   const step = onboardingSteps[index]!;
   const previous = session.status === "complete" ? undefined : onboardingSteps[index - 1];
   const submitLabel = step === "bundleIds" ? "Finish setup" : "Continue";
-  const { setCaptureReady } = use(InboxArrivalTransition);
-
-  useEffect(() => {
-    if (step !== "bundleIds") return;
-    setCaptureReady(true);
-    return () => setCaptureReady(false);
-  }, [step, setCaptureReady]);
 
   function markComplete() {
     // Keep the submitted step in place until Glimm commits the navigation.
@@ -174,7 +167,7 @@ export function OnboardingPage({
             aria-hidden="true"
             className="invisible col-start-1 row-start-1 hidden gap-7 sm:grid"
           >
-            <BundleChoices selected={[]} />
+            <BundleChoices interests={[]} selected={[]} />
             <div className="h-11" />
           </div>
           <div
@@ -190,8 +183,10 @@ export function OnboardingPage({
               draft={session.draft}
               categories={initialState.options.categories}
               languages={initialState.languages}
+              interests={session.draft.categories ?? []}
               serverError={issue?.step === step ? issue.message : undefined}
               onEdit={() => setIssue(undefined)}
+              onValidityChange={setValid}
               onContinue={save}
             />
             <Button
@@ -201,18 +196,10 @@ export function OnboardingPage({
               size="xl"
               aria-label={submitLabel}
               loading={saving}
-              disabled={saving}
-              className="group/continue min-h-11 w-full group-has-[form[data-valid=true]]/step:border-matcha"
+              disabled={saving || !valid}
+              className="min-h-11 w-full transition-[box-shadow,scale,opacity] motion-reduce:transition-none"
             >
               <TextMorph scale={false}>{submitLabel}</TextMorph>
-              {!saving && (
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 grid place-items-center rounded-[inherit] bg-matcha text-matcha-foreground [--matcha-hidden:0_100%_0_0] rtl:[--matcha-hidden:0_0_0_100%] [clip-path:inset(var(--matcha-hidden))] group-has-[form[data-valid=true]]/step:[clip-path:inset(0)] transition-[clip-path,filter] duration-(--duration-control) ease-out-quint group-hover/continue:brightness-95 motion-reduce:transition-none"
-                >
-                  <TextMorph scale={false}>{submitLabel}</TextMorph>
-                </span>
-              )}
             </Button>
           </div>
         </div>
@@ -275,23 +262,31 @@ function OnboardingStepForm({
   draft,
   categories,
   languages,
+  interests,
   serverError,
   onEdit,
+  onValidityChange,
   onContinue,
 }: {
   step: OnboardingStep;
   draft: OnboardingDraft;
   categories: string[];
   languages: OnboardingLanguageOption[];
+  interests: string[];
   serverError?: string;
   onEdit: () => void;
+  onValidityChange: (valid: boolean) => void;
   onContinue: (value: string | string[]) => Promise<void>;
 }) {
-  const [value, setValue] = useState(
-    step === "language"
-      ? (modelLanguage(draft.language ?? "") ?? "")
-      : (draft[step] ?? emptyStepValues[step]),
-  );
+  const [value, setValue] = useState(() => {
+    if (step === "language") return modelLanguage(draft.language ?? "") ?? "";
+    if (step === "bundleIds") {
+      // Drop saved bundles that changed interests no longer recommend.
+      const shown = new Set<string>(recommendStarterBundles(interests).map((bundle) => bundle.id));
+      return (draft.bundleIds ?? []).filter((id) => shown.has(id));
+    }
+    return draft[step] ?? emptyStepValues[step];
+  });
   const [error, setError] = useState<string>();
 
   function update(value: string | string[]) {
@@ -314,19 +309,21 @@ function OnboardingStepForm({
 
   const fieldError = error ?? serverError;
   const errorId = fieldError ? "onboarding-error" : undefined;
+  // A previous server failure should not prevent retrying a valid selection.
+  const valid = parsed.success;
+
+  useEffect(() => {
+    onValidityChange(valid);
+  }, [valid, onValidityChange]);
 
   return (
-    <form
-      id="onboarding-step"
-      data-valid={parsed.success && !fieldError}
-      onSubmit={submit}
-      noValidate
-    >
+    <form id="onboarding-step" data-valid={valid} onSubmit={submit} noValidate>
       <div className="relative space-y-2">
         <OnboardingField
           step={step}
           categories={categories}
           languages={languages}
+          interests={interests}
           value={value}
           onChange={update}
           errorId={errorId}

@@ -1,16 +1,33 @@
 import { Button } from "@kyomi/ui/components/button";
+import { useStore } from "@tanstack/react-form";
 import { AccountHeading } from "./layout";
 import { Form } from "@kyomi/ui/components/form";
 import { Field, FieldError, FieldLabel } from "@kyomi/ui/components/field";
-import { OTPField, OTPFieldInput, OTPFieldSeparator } from "@kyomi/ui/components/otp-field";
+import { OTPField, OTPFieldPrimitive, OTPFieldSeparator } from "@kyomi/ui/components/otp-field";
 import { getFieldErrorMessage } from "@modules/auth/schema";
 import { useResendCode, useOtpForm } from "./hooks";
 
-const otpInputClassName = "aspect-square h-auto min-w-0 flex-1 sm:h-auto";
+function OtpDigits({ start }: { start: 1 | 4 }) {
+  return (
+    <div className="grid h-[calc(11*var(--otp-unit))] min-w-0 flex-1 grid-cols-3 rounded-lg border border-input bg-muted/50 has-aria-invalid:border-destructive/64">
+      {[start, start + 1, start + 2].map((digit) => (
+        <OTPFieldPrimitive.Input
+          key={digit}
+          autoFocus={digit === 1}
+          aria-label={digit === 1 ? undefined : `Character ${digit} of 6`}
+          data-slot="otp-field-input"
+          className="w-full min-w-0 border-e border-border bg-transparent text-center font-mono text-[length:calc(4*var(--otp-unit))] text-foreground outline-none transition-[background-color,box-shadow] duration-(--duration-control) first:rounded-s-[calc(var(--radius-lg)-var(--stroke-width))] last:rounded-e-[calc(var(--radius-lg)-var(--stroke-width))] last:border-e-0 focus-visible:bg-background focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring focus-visible:ring-inset focus-visible:aria-invalid:ring-destructive"
+        />
+      ))}
+    </div>
+  );
+}
 
-export function OtpStep({ email, returnTo }: { email: string; returnTo: string }) {
-  const otpForm = useOtpForm(email, returnTo);
+export function OtpStep({ email, onVerified }: { email: string; onVerified: () => void }) {
+  const otpForm = useOtpForm(email, onVerified);
+  const isSubmitting = useStore(otpForm.store, (state) => state.isSubmitting);
   const { handleResendCode, isResending } = useResendCode(email);
+  const isBusy = isSubmitting || isResending;
 
   return (
     <>
@@ -21,7 +38,7 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
         onSubmit={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          void otpForm.handleSubmit();
+          if (!isBusy) void otpForm.handleSubmit();
         }}
       >
         <otpForm.Field name="otp">
@@ -30,23 +47,21 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
             const errorMessage = getFieldErrorMessage(field.state.meta.errors, canShow);
 
             return (
-              <Field className="items-center">
+              <Field className="@container items-center" invalid={Boolean(errorMessage)}>
                 <FieldLabel className="sr-only">Verification code</FieldLabel>
+                {/* The compact layout is 75 spacing units wide. Grow its geometry with the form. */}
                 <OTPField
                   aria-label="Verification code"
-                  className="w-full"
+                  className="w-full [--otp-unit:max(var(--space-unit),calc(100cqi/75))] sm:gap-[calc(3*var(--otp-unit))]"
                   length={6}
                   autoSubmit
+                  readOnly={isBusy}
                   value={field.state.value}
                   onValueChange={(val) => field.handleChange(val)}
                 >
-                  <OTPFieldInput autoFocus className={otpInputClassName} />
-                  <OTPFieldInput aria-label="Character 2 of 6" className={otpInputClassName} />
-                  <OTPFieldInput aria-label="Character 3 of 6" className={otpInputClassName} />
-                  <OTPFieldSeparator />
-                  <OTPFieldInput aria-label="Character 4 of 6" className={otpInputClassName} />
-                  <OTPFieldInput aria-label="Character 5 of 6" className={otpInputClassName} />
-                  <OTPFieldInput aria-label="Character 6 of 6" className={otpInputClassName} />
+                  <OtpDigits start={1} />
+                  <OTPFieldSeparator className="data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-[calc(2*var(--otp-unit))]" />
+                  <OtpDigits start={4} />
                 </OTPField>
                 {errorMessage ? (
                   <FieldError match={true}>{errorMessage as string}</FieldError>
@@ -56,25 +71,20 @@ export function OtpStep({ email, returnTo }: { email: string; returnTo: string }
           }}
         </otpForm.Field>
 
-        <otpForm.Subscribe selector={(state) => [state.isSubmitting]}>
-          {([isSubmitting]) => (
-            <Button className="w-full" size="xl" type="submit" loading={Boolean(isSubmitting)}>
-              Continue
-            </Button>
-          )}
-        </otpForm.Subscribe>
+        <Button className="w-full" size="xl" type="submit" disabled={isBusy} loading={isSubmitting}>
+          Continue
+        </Button>
 
-        <div className="flex justify-center">
-          <Button
-            variant="ghost"
-            size="xl"
-            type="button"
-            onClick={() => void handleResendCode()}
-            disabled={isResending}
-          >
-            {isResending ? "Resending…" : "Resend code"}
-          </Button>
-        </div>
+        <Button
+          className="w-full"
+          variant="ghost"
+          size="xl"
+          type="button"
+          onClick={() => void handleResendCode()}
+          disabled={isBusy}
+        >
+          {isResending ? "Resending…" : "Resend code"}
+        </Button>
       </Form>
     </>
   );

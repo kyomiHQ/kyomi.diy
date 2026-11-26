@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from "@kyomi/ui/icons/blode";
+import { NativeSelect } from "@kyomi/ui/components/native-select";
 import { BundleChoices } from "./bundle-choices";
 import {
   requiredInterests,
@@ -10,6 +10,7 @@ export function OnboardingField({
   step,
   categories,
   languages,
+  interests,
   value,
   onChange,
   errorId,
@@ -17,6 +18,7 @@ export function OnboardingField({
   step: OnboardingStep;
   categories: string[];
   languages: OnboardingLanguageOption[];
+  interests: string[];
   value: string | string[];
   onChange: (value: string | string[]) => void;
   errorId?: string;
@@ -54,7 +56,14 @@ export function OnboardingField({
         />
       );
     case "bundleIds":
-      return <BundleChoices selected={selected} onSelect={toggle} errorId={errorId} />;
+      return (
+        <BundleChoices
+          interests={interests}
+          selected={selected}
+          onSelect={toggle}
+          errorId={errorId}
+        />
+      );
   }
 }
 
@@ -100,27 +109,22 @@ function LanguageInput({
   errorId,
 }: TextFieldProps & { languages: OnboardingLanguageOption[] }) {
   return (
-    <div className="relative">
-      <select
-        aria-label="Reading language"
-        aria-invalid={Boolean(errorId)}
-        aria-describedby={errorId}
-        className="h-11 w-full appearance-none rounded-lg border border-input bg-background ps-3 pe-9 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring forced-colors:appearance-auto"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="">Select a language</option>
-        {languages.map(({ code, name }) => (
-          <option key={code} value={code}>
-            {name}
-          </option>
-        ))}
-      </select>
-      <ChevronDownIcon
-        aria-hidden="true"
-        className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground [stroke-width:var(--icon-stroke)] forced-colors:hidden"
-      />
-    </div>
+    <NativeSelect
+      aria-label="Preferred language"
+      aria-invalid={Boolean(errorId)}
+      aria-describedby={errorId}
+      className="w-full"
+      size="xl"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      <option value="">Select a language</option>
+      {languages.map(({ code, name }) => (
+        <option key={code} value={code}>
+          {name}
+        </option>
+      ))}
+    </NativeSelect>
   );
 }
 

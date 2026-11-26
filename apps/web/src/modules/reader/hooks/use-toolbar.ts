@@ -44,6 +44,8 @@ export function useReaderToolbar({
     articleClassName: reader.articleClassName,
     articleStyle: reader.articleStyle,
     canRequestExtraction,
+    isTranslated: Boolean(translation.result?.translated_content),
+    isTranslating: translation.isTranslating,
     displayReader: translation.result?.translated_content
       ? {
           ...reader.displayReader,

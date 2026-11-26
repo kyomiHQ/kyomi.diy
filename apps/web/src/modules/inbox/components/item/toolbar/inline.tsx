@@ -5,8 +5,15 @@ import type { InboxItem } from "@modules/articles/lib/api";
 import { useItemToolbarModel } from "@modules/inbox/hooks/use-item-toolbar";
 import { ReportArticleDialog } from "../report-article";
 import { ItemToolbar } from "./index";
+import type { ItemToolbarCorners } from "./button";
 
-export function ItemInlineToolbar({ item, className }: { item: InboxItem; className?: string }) {
+export function ItemInlineToolbar({
+  item,
+  corners,
+}: {
+  item: InboxItem;
+  corners: ItemToolbarCorners;
+}) {
   const [reportOpen, setReportOpen] = useState(false);
   const toolbar = useItemToolbarModel({
     item,
@@ -15,7 +22,7 @@ export function ItemInlineToolbar({ item, className }: { item: InboxItem; classN
 
   return (
     <>
-      <ItemToolbar {...toolbar.toolbarProps} className={className} />
+      <ItemToolbar {...toolbar.toolbarProps} corners={corners} />
       <ReportArticleDialog item={item} open={reportOpen} onOpenChange={setReportOpen} />
     </>
   );

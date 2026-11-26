@@ -1,18 +1,15 @@
 import { Console, Effect } from "effect";
 import { embeddingClassifierConfig } from "@config/embeddings";
-import { AppConfig } from "@config/env/service";
 import {
   buildCategoryModel,
   CATEGORY_MODEL_LABELS,
   CATEGORY_MODEL_TRAINING_OPTIONS,
 } from "@modules/catalog/category-model/build";
 import { Embeddings } from "@modules/catalog/embeddings";
-import { EmbeddingsNotConfigured, InvalidArguments } from "@modules/catalog/errors";
+import { InvalidArguments } from "@modules/catalog/errors";
 import { AppLive } from "../runtime";
 import { runMain } from "../setup/main";
 import { ensureDatabaseReady } from "../setup/ready";
-
-const EMBEDDING_TIMEOUT_MS = 60_000;
 
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 
@@ -24,12 +21,7 @@ const train = Effect.gen(function* () {
       message: "Pass --version <name>, e.g. --version article-head-v2",
     });
   }
-  const config = embeddingClassifierConfig(EMBEDDING_TIMEOUT_MS, yield* AppConfig);
-  if (!config) {
-    return yield* new EmbeddingsNotConfigured({
-      message: "CLOUDFLARE_EMBEDDINGS_URL and CLOUDFLARE_EMBEDDINGS_TOKEN are required",
-    });
-  }
+  const config = embeddingClassifierConfig();
 
   yield* ensureDatabaseReady({ commandName: "category:train", ensureSchema: false });
   const { examples, report } = yield* buildCategoryModel({
