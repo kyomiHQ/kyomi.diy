@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
+import { Auth } from "@adapters/auth/service";
 import { createApp } from "@app/http/app";
-import { createAppRuntime } from "@app/runtime";
+import type { AppRuntime } from "@app/runtime";
 import { registerInboxRoutes } from "@modules/inbox/routes";
 import { normalizeRecapLimit } from "@modules/inbox/recap/summary";
 import { Elysia, registerTestErrorHandlers } from "@api-tests/support/elysia";
-import { fakeDb, silentLogger } from "@api-tests/support/layers";
+import { fakeDb, silentLogger, testConfig } from "@api-tests/support/layers";
 
 const runtimes: Array<{ dispose: () => Promise<void> }> = [];
 
@@ -201,8 +202,21 @@ describe("inbox recap summary", () => {
   });
 
   test("registers the recap endpoint under api v1", async () => {
-    // The real runtime (built lazily, connects on first use); disposed so no pool or client leaks.
-    const runtime = createAppRuntime();
+    // Exercise the complete route tree with only the services an unauthenticated request uses.
+    const runtime = ManagedRuntime.make(
+      Layer.mergeAll(
+        testConfig(),
+        silentLogger,
+        Layer.succeed(
+          Auth,
+          Auth.of({
+            sessionUserId: () => Effect.succeed(null),
+            handle: () => Effect.die("unused"),
+            listSessions: () => Effect.die("unused"),
+          }),
+        ),
+      ),
+    ) as unknown as AppRuntime;
     runtimes.push(runtime);
     const app = createApp({ runtime });
     const response = await app.handle(new Request("http://localhost/api/v1/inbox/recap?limit=5"));
