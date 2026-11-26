@@ -244,6 +244,7 @@ jobs:
       - checkout
       - setup-bun:
           prefetch: false
+      - setup-encoders
       - restore-turbo:
           scope: build
       - run:
