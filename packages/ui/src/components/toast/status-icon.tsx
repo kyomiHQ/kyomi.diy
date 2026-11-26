@@ -136,7 +136,7 @@ export function ToastStatusIcon({
 const TOAST_ICON_CLASS_NAMES = {
   error: "text-destructive",
   info: "text-info",
-  loading: "animate-spin text-muted-foreground opacity-90",
+  loading: "motion-safe:animate-spin text-muted-foreground opacity-90",
   success: "text-success",
   warning: "text-warning",
 } as const;

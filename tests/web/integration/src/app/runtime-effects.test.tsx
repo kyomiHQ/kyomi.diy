@@ -1,5 +1,6 @@
 import { act, render } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { toastManager } from "@kyomi/ui/components/toast";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { AppRuntimeEffects } from "@/app/runtime-effects";
 
@@ -48,6 +49,34 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+test("updates the same toast when the connection returns", () => {
+  const add = vi.spyOn(toastManager, "add").mockReturnValue("network-status");
+  onlineManager.setOnline(true);
+  const view = render(
+    <QueryClientProvider client={queryClient}>
+      <AppRuntimeEffects />
+    </QueryClientProvider>,
+  );
+
+  try {
+    act(() => onlineManager.setOnline(false));
+    act(() => onlineManager.setOnline(true));
+
+    expect(add).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: "network-status", type: "warning", timeout: 0 }),
+    );
+    expect(add).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: "network-status", type: "success", timeout: 2000 }),
+    );
+  } finally {
+    view.unmount();
+    onlineManager.setOnline(true);
+    add.mockRestore();
+  }
 });
 
 describe("AppRuntimeEffects auth recovery", () => {

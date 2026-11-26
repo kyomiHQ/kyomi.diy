@@ -73,3 +73,21 @@ test("the header translates on demand and the separately mounted reader can rest
   toast.mockRestore();
   client.clear();
 });
+
+test("a translation request failure displays a short retry message", async () => {
+  const client = new QueryClient();
+  requestTranslation.mockRejectedValueOnce(new Error("A long server error that may overflow"));
+  const { result } = renderHook(() => useTranslation("article", "original", "fr", null), {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>
+        <ToastProvider>{children}</ToastProvider>
+      </QueryClientProvider>
+    ),
+  });
+
+  await act(async () => result.current.toggle());
+
+  expect(await screen.findByText("Translation failed. Try again.")).toBeTruthy();
+  expect(screen.queryByText(/long server error/)).toBeNull();
+  client.clear();
+});

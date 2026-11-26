@@ -78,9 +78,9 @@ that become instant under reduced motion. `EASE_OUT_QUINT` mirrors the CSS curve
 changes, shared letters glide to their new place, the rest fade, and numbers roll by place value. It
 runs 240ms on the `--ease-out-quint` curve, skips the first render, and swaps instantly under reduced
 motion. `ButtonLabel`, toast titles, the reader's font-size readout, and the feed selection count
-use it. Torph lays text out on one line and accepts text only, so keep it to short labels: toasts
-morph titles up to 40 characters (28 in anchored cards) and leave longer ones as plain text, which
-truncates. Do not use it in long lists or for values that change while dragging.
+use it. Torph lays labels out on one line. Use concise toast titles that fit beside the status
+icon and end slot, including at narrow widths. Do not use it in long lists or for values that
+change while dragging.
 
 ## Toast
 
@@ -102,7 +102,7 @@ title, and an end slot. There is no description, and the managers are typed to r
   The title morphs with Torph over 600ms on `cubic-bezier(0.41, 1.03, 0.6, 1.03)`. The icon swaps
   inside a single grid cell: the old glyph scales to 0.6 and fades out while the new one grows in
   from 0.6 after 0.1s, on one spring (`mass 4, stiffness 800, damping 80`). Reduced motion swaps
-  instantly. The count keeps its own 240ms curve so it stays in step with the ring.
+  instantly. While a progress ring is present, the title and count both use its 240ms curve.
 - Loading titles carry no ellipsis (`Importing feeds`, not `Importing feeds...`); the spinner and
   the count say it is in progress.
 - The body is a squircle (`useSquircle`, 14px; 10px for anchored tooltips). A clip path cuts a

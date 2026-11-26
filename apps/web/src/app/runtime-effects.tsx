@@ -9,7 +9,7 @@ import { clearHotQueryCache } from "@lib/query/cache";
 import { prefetchInboxFlow } from "@modules/inbox/lib/navigation";
 
 const SERVICE_WORKER_URL = "/sw.js";
-const OFFLINE_TOAST_ID = "network-offline";
+const NETWORK_TOAST_ID = "network-status";
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
@@ -41,17 +41,12 @@ export function AppRuntimeEffects() {
     // Only transitions toast: starting online (or offline) stays silent. The offline toast is
     // persistent and replaced in place so a flapping connection never stacks toasts.
     return onlineManager.subscribe((isOnline) => {
-      if (!isOnline) {
-        toastManager.add({
-          id: OFFLINE_TOAST_ID,
-          title: "You're offline. Changes won't save",
-          timeout: 0,
-          type: "warning",
-        });
-        return;
-      }
-      toastManager.close(OFFLINE_TOAST_ID);
-      toastManager.add({ title: "Back online", timeout: 2000, type: "success" });
+      toastManager.add({
+        id: NETWORK_TOAST_ID,
+        title: isOnline ? "Back online" : "Offline. Changes won’t save",
+        timeout: isOnline ? 2000 : 0,
+        type: isOnline ? "success" : "warning",
+      });
     });
   }, []);
 

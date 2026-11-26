@@ -118,16 +118,11 @@ function AnchoredToastItem({
         >
           {tooltipStyle ? (
             <Toast.Content className="pointer-events-auto px-2 py-1">
-              <ToastTitle
-                className="truncate font-medium"
-                data-slot="toast-title"
-                maxMorphChars={36}
-                toast={toast}
-              />
+              <ToastTitle className="font-medium" data-slot="toast-title" toast={toast} />
             </Toast.Content>
           ) : (
             <Toast.Content className={TOAST_CONTENT_CLASS_NAME}>
-              <ToastRow maxMorphChars={28} toast={toast} />
+              <ToastRow toast={toast} />
             </Toast.Content>
           )}
         </ToastSurface>

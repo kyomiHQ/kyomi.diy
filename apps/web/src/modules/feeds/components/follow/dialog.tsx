@@ -106,7 +106,7 @@ function showFollowedToast(anchor?: HTMLElement | null) {
   }
 
   anchoredToastManager.add({
-    title: "Following!",
+    title: "Feed followed",
     type: "success",
     timeout: 2400,
     data: { tooltipStyle: true },
@@ -331,7 +331,7 @@ export function FollowSourcesDialog({
         .promise(importPromise, {
           loading: loadingToast,
           success: (status) => ({
-            title: `Imported ${getImportedCount(status)} of ${status.summary.totalUrls} feeds`,
+            title: `Imported ${getImportedCount(status)}/${status.summary.totalUrls} feeds`,
             type: "success",
             timeout: 3000,
             data: undefined,
